@@ -2,43 +2,63 @@
 """Korrelation: Zahlungseingänge aus der WEG-Einzelabrechnung vs. Bank-Umsätze.
 
 Vergleicht die `zahlungen.liste` aus der Abrechnungs-JSON (weg_abrechnung_JJJJ_weN.json)
-mit den Bank-Umsätzen in konto_JJJJ.json, deren Partner den Nachnamen aus `einheit.eigentuemer` enthält.
+mit den Bank-Umsätzen in konto_JJJJ.json, deren Partner den vollen Namen aus `einheit.eigentuemer` trägt
+(siehe `namens_woerter`).
 
 Sonderfälle (siehe SKILL.md, Fallstricke):
-- Sammel-Lastschrift: Einzelzahlung des Eigentümers steckt in einer Sammel-
-  Buchung (5 Lastschriften) und ist dort nicht einzeln erkennbar. Belegt sie
-  sich über die verwandte Retoure (Verwendungszweck "Hausgeld X,00 + Entgelt"),
-  wird sie als "indirekt belegt" klassifiziert.
-- Retouren werden Tage später gebucht als die Original-Lastschrift ->
-  Datumstoleranz (standardmaessig +/- 7 Tage).
-- Fehlende Kontoauszuege (datei: null): Zahlungen im entsprechenden Zeitraum
-  koennen nicht verifiziert werden und werden als "unverifizierbar (Auszug fehlt)"
+- Sammel-Lastschrift: Die Einzelzahlung des Eigentümers steckt in einer Sammelbuchung
+  über die Lastschriften mehrerer Eigentümer und ist dort nicht einzeln erkennbar.
+  Belegt sie sich über die verwandte Retoure (Verwendungszweck "Hausgeld X,00 + Entgelt"),
+  wird sie als "indirekt belegt" klassifiziert. Sonst bleibt sie FEHLT, und ihre Lücke
+  braucht einen Eintrag unter `offene_punkte`.
+- Datumstoleranz: Pass 1 ±3 Tage, Retoure ±7 Tage. Eine Retoure wird Tage nach
+  der Original-Lastschrift gebucht.
+- Fehlende Kontoauszüge (datei: null): Zahlungen im entsprechenden Zeitraum
+  können nicht verifiziert werden und werden als "unverifizierbar (Auszug fehlt)"
   gemeldet.
 
 Aufruf:
     python3 korrelation_zahlungen.py weg_abrechnung_JJJJ_weN.json konto_JJJJ.json
 
-Exit-Code 0 = alle Zahlungen verifiziert oder plausibel indirekt belegt,
-Exit-Code 1 = es gibt nicht aufgeklärbare Abweichungen.
+Jede Zahlung ohne Bankbuchung (FEHLT), jede Zahlung im Zeitraum eines fehlenden Auszugs (UNVERIFIZIERBAR) und jeder
+Eingang des Eigentümers, der in der Abrechnung fehlt, ist eine Lücke. Eine Lücke gilt als geklärt, wenn ein Eintrag
+unter `offene_punkte` der Abrechnungs-JSON mit ihrem Schlüssel beginnt (siehe luecken.py). Das Skript gibt die
+Schlüssel der ungeklärten Lücken aus.
+
+Exit-Code 0 = jede Zahlung ist direkt oder indirekt belegt, oder ihre Lücke ist dokumentiert.
+Exit-Code 1 = es gibt mindestens eine Lücke ohne Eintrag unter `offene_punkte`.
 """
 
 import json
 import re
 import sys
-from datetime import date, datetime, timedelta
-from pathlib import Path
+import unicodedata
+
+import luecken
+from datetime import datetime
 
 # Höchstes Bankentgelt, das eine Rücklastschrift auf den geplatzten Betrag aufschlägt.
 # Die Retoure in der Abrechnung ist dann -(Betrag + Entgelt). Das Entgelt hängt von der Bank ab.
 ENTGELT_MAX = 10.00
 
 
+UMLAUTE = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
+
+
+def namens_woerter(name):
+    """Die Wörter eines Namens in einer Form, in der Schreibweisen der Bank und der Abrechnung gleich aussehen.
+
+    Groß- und Kleinschreibung, Umlaute („Müller“ und „MUELLER“), Satzzeichen und die Reihenfolge („Müller, Hans“ und
+    „Hans Müller“) spielen dann keine Rolle. Abkürzungen mit Punkt wie „Dr.“ zählen nicht, weil die Bank sie oft
+    weglässt.
+    """
+    name = unicodedata.normalize("NFC", name).casefold().translate(UMLAUTE)
+    woerter = [w for w in name.replace(",", " ").split() if not w.endswith(".")]
+    return {w for w in (re.sub(r"[^a-z0-9-]", "", w) for w in woerter) if w}
+
+
 def parse_date(s):
     return datetime.strptime(s, "%Y-%m-%d").date()
-
-
-def fmt(eigentuemer_nachname, betrag, d):
-    return f"{d.isoformat()}  {betrag:>10.2f} €"
 
 
 def main():
@@ -50,15 +70,15 @@ def main():
     konto = json.load(open(sys.argv[2]))
 
     eigentuemer = abrechnung["einheit"]["eigentuemer"]
-    nachname = eigentuemer.split()[-1].lower()
+    name = namens_woerter(eigentuemer)
     payments = abrechnung["zahlungen"]["liste"]
     for p in payments:
-        p["datum"] = parse_date(p["datum"] if isinstance(p["datum"], str) else p["datum"].isoformat())
+        p["datum"] = parse_date(p["datum"])
 
-    # Bank-Zahlungen des Eigentümers: Partner enthält Nachnamen,
+    # Bank-Zahlungen des Eigentümers: Der Partner enthält jedes Wort seines Namens als ganzes Wort,
     # signiert nach soll_haben (haben = positiv, soll = negativ).
     bank = []
-    fehlende_auszuege = []  # (von, bis) Zeitraeume ohne Kontoauszug
+    fehlende_auszuege = []  # (von, bis) Zeiträume ohne Kontoauszug
     for konto_entry in konto["konten"]:
         for auszug in konto_entry["auszuege"]:
             if not auszug.get("datei"):
@@ -67,7 +87,7 @@ def main():
                      parse_date(auszug["neuer_kontostand"]["vom"][:10]))
                 )
             for t in auszug["transaktionen"]:
-                if nachname not in t.get("partner", "").lower():
+                if not name <= namens_woerter(t.get("partner", "")):
                     continue
                 betrag = t["betrag"] if t.get("soll_haben") == "haben" else -t["betrag"]
                 bank.append({
@@ -85,7 +105,6 @@ def main():
 
     used = [False] * len(bank)
     results = []  # (payment, status, hinweis)
-    ab = {p["datum"]: p for p in payments}
 
     def find(match_fn, p, tol_days):
         best = None
@@ -101,7 +120,7 @@ def main():
 
     matched_ids = set()  # bereits belegte Abrechnungs-Zahlungen
 
-    # Pass 1: exakte Betrags-/Datums-Matches (Dauerauftraege, direkte Zahlung
+    # Pass 1: exakte Betrags-/Datums-Matches (Daueraufträge, direkte Zahlungen).
     for p in payments:
         m = find(same, p, 3)
         if m is not None:
@@ -113,11 +132,10 @@ def main():
     # Muster: Abrechnung führt eine Zahlung +X (per Lastschrift, in der
     # Sammel-Lastschrift aggregiert) und eine Retoure -(X+Entgelt). In der Bank
     # existiert nur die Retoure, deren Verwendungszweck X erwähnt.
-    pair_matched = set()
-    # Retouren belegen zwoerlei: die Ruecklastschrift selbst (Pass 1, exakter
-    # Betrag) UND den darin erwaehnten Original-Betrag der geplatzten
-    # Lastschrift. Deshalb auch bereits in Pass 1 verbrauchte Retouren hier als
-    # Beleg zulassen; die Zahlung wird nur einmal verbraucht.
+    # Eine Retoure belegt zweierlei: die Rücklastschrift selbst (Pass 1, exakter
+    # Betrag) und den darin erwähnten Original-Betrag der geplatzten Lastschrift.
+    # Deshalb dient hier auch eine schon in Pass 1 verbrauchte Retoure als Beleg.
+    # Jede Zahlung der Abrechnung wird trotzdem nur einmal verbraucht.
     retoures = [i for i, b in enumerate(bank) if "retoure" in b["art"].lower()]
     for i in retoures:
         rb = bank[i]
@@ -125,12 +143,12 @@ def main():
         if not m:
             continue
         x = float(m.group(1).replace(".", "").replace(",", "."))
-        for j, p in enumerate(payments):
+        for p in payments:
             if id(p) in matched_ids or round(p["betrag"], 2) != round(x, 2):
                 continue
-            # Partner -(x+Entgelt) existiert nur als Belegkette; er darf bereits
-            # anderweitig gematcht sein (z. B. als exakte Bank-Buchung) und wird
-            # dann nicht erneut ausgegeben.
+            # Die Gegenbuchung -(x + Entgelt) in der Abrechnung ist Teil derselben Belegkette.
+            # Sie darf schon anderweitig zugeordnet sein, etwa als exakte Bank-Buchung.
+            # Dann wird sie nicht noch einmal ausgegeben.
             partner_retoure = next(
                 (q for q in payments
                  if 0 < round(-q["betrag"] - x, 2) <= ENTGELT_MAX
@@ -160,13 +178,11 @@ def main():
 
     # Kontrolle: Bank-Buchungen des Eigentümers, die in der Abrechnung fehlen
     # (innerhalb des Abrechnungszeitraums, ohne Abgleich über Sammel-Lastschrift).
-    matched_bank = {i for i, u in enumerate(used) if u}
-    abrechnung_betraege = {(p["datum"], round(p["betrag"], 2)) for p in payments}
     fehlen_in_abrechnung = []
     for i, b in enumerate(bank):
-        if used[i] or i in {r for r in []}:
+        if used[i]:
             continue
-        # Retouren sind über Pass 2/Abgleich abgedeckt; übrig bleiben Daueraufträge
+        # Retouren deckt Pass 2 ab. Übrig bleiben Daueraufträge und Überweisungen.
         if "retoure" in b["art"].lower():
             continue
         if b["betrag"] > 0:  # Zahlungseingänge
@@ -198,10 +214,16 @@ def main():
         for b in fehlen_in_abrechnung:
             print(f"  ? {b['datum']}  {b['betrag']:>10.2f} €  Auszug {b['auszug']}  VZ: {b['vz']}")
 
-    if n_fehlt:
-        print("\nERGEBNIS: Es gibt Zahlungen ohne Bank-Beleg (siehe '!').")
+    lueckenliste = [luecken.zahlung(status.lower(), p["datum"], p["betrag"])
+                    for p, status, _ in results if status in ("FEHLT", "UNVERIFIZIERBAR")]
+    lueckenliste += [luecken.zahlung("fehlt in Abrechnung", b["datum"], b["betrag"]) for b in fehlen_in_abrechnung]
+    offen = [l for l in lueckenliste if not luecken.dokumentiert(l, abrechnung.get("offene_punkte"))]
+    if offen:
+        print("\nERGEBNIS: Lücken ohne Eintrag unter offene_punkte. Jeder Eintrag beginnt mit dem Schlüssel:")
+        for l in offen:
+            print(f"  {l}")
         return 1
-    print("\nERGEBNIS: Alle Zahlungen der Abrechnung sind direkt oder plausibel indirekt belegt.")
+    print(f"\nERGEBNIS: Jede Zahlung ist belegt, oder ihre Lücke ist dokumentiert ({len(lueckenliste)} Lücken).")
     return 0
 
 

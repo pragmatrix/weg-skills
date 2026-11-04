@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "weg_abrechnung.schema.json",
   "title": "WEG-Einzelabrechnung – Eckdaten einer Einheit (weg_abrechnung_JJJJ_weN.json)",
-  "description": "Extraktion der wichtigsten Eckdaten aus der Einzelabrechnung einer Einheit. Alle Beträge in EUR, zwei Dezimalstellen, Komma-Format wie im PDF in Zahlen konvertiert. Jedes Objekt darf ein Feld \"fundstelle\" tragen (siehe $defs.fundstelle), aus dem ein Bericht den Quellenlink bildet.",
+  "description": "Extraktion der wichtigsten Eckdaten aus der Einzelabrechnung einer Einheit. Alle Beträge in EUR, zwei Dezimalstellen, Komma-Format wie im PDF in Zahlen konvertiert. Jedes Objekt darf ein Feld \"fundstelle\" tragen, aus dem ein Bericht den Quellenlink bildet. Sein Format steht in schema.md, Abschnitt Fundstelle.",
   "type": "object",
   "required": [
     "gemeinschaft",
@@ -105,7 +105,7 @@
     },
     "ergebnis": {
       "type": "object",
-      "description": "Kernergebnis der Einzelabrechnung (Seite 1 bzw. Übersicht Seite 5)",
+      "description": "Kernergebnis der Einzelabrechnung, wie es ihre Übersicht ausweist",
       "required": [
         "bewirtschaftungskosten",
         "beitragsverpflichtung_rueckstellung",
@@ -119,11 +119,11 @@
       "properties": {
         "bewirtschaftungskosten": {
           "type": "number",
-          "description": "Ihr Anteil an 'Ergebnis Ausgaben'"
+          "description": "Anteil der Einheit an den Ausgaben der Gemeinschaft"
         },
         "beitragsverpflichtung_rueckstellung": {
           "type": "number",
-          "description": "Ihr Anteil Rücklagenzuführung"
+          "description": "Anteil der Einheit an der Zuführung zur Erhaltungsrücklage"
         },
         "abrechnungssumme": {
           "type": "number",
@@ -139,23 +139,23 @@
         },
         "hausgeldrueckstand_wirtschaftsplan": {
           "type": "number",
-          "description": "Hausgeld-Soll minus Zahlungseingang, hier 65,96"
+          "description": "Hausgeld-Soll minus Zahlungseingang. Positiv heißt Rückstand."
         },
         "abrechnungsspitze": {
           "type": "number",
-          "description": "Abrechnungssumme minus Hausgeld-Soll, hier 1044,87"
+          "description": "Abrechnungssumme minus Hausgeld-Soll"
         },
         "abrechnungssaldo": {
           "type": "number",
-          "description": "Abrechnungsspitze minus Hausgeldrückstand (aus Vorzahlungsplan abgeleitet), hier 1110,83"
+          "description": "Abrechnungsspitze plus Hausgeldrückstand. Positiv heißt Forderung an den Eigentümer."
         },
-        "fehlebetrag_gesamt": {
+        "fehlbetrag_gesamt": {
           "type": "number",
           "description": "Abrechnungssaldo plus Nachzahlung aus Vorjahren"
         },
         "abrechnungsspitze_note": {
           "type": "string",
-          "description": "Kette laut Übersicht (Spalte 5+7): Abrechnungssaldo = Abrechnungsspitze + Hausgeldrückstand (Rückstand positiv = Forderung)"
+          "description": "Freitext zum Rechenweg, mit dem die Abrechnung den Abrechnungssaldo herleitet"
         }
       }
     },
@@ -168,7 +168,7 @@
       "properties": {
         "zeitraum_summe": {
           "type": "object",
-          "description": "Fusszeile der Zahlungstabelle (Seite 2)",
+          "description": "Summenzeile der Zahlungstabelle in der Einzelabrechnung",
           "required": [
             "gesamt",
             "bewirtschaftung",
@@ -234,21 +234,21 @@
       "properties": {
         "abrechnungsergebnis": {
           "type": "number",
-          "description": "Abrechnungsergebnis aus Vorjahr(en), hier 811,56"
+          "description": "Abrechnungsergebnis aus Vorjahr(en)"
         },
         "zahlungseingang": {
           "type": "number",
-          "description": "Zahlungseingang auf Vorjahren-Saldo (negativ = Guthaben), hier -216,88"
+          "description": "Zahlungseingang auf den Saldo der Vorjahre. Negativ heißt Guthaben."
         },
         "saldo": {
           "type": "number",
-          "description": "Nachzahlung aus Vorjahr(en), hier 1028,44"
+          "description": "Nachzahlung aus Vorjahr(en)"
         }
       }
     },
     "kostenpositionen": {
       "type": "array",
-      "description": "Einzelpositionen der Ausgaben / Bewirtschaftungskosten (Ihr Anteil)",
+      "description": "Einzelpositionen der Ausgaben, je mit dem Anteil der Einheit",
       "items": {
         "type": "object",
         "required": [
@@ -264,13 +264,11 @@
             "type": "string"
           },
           "umlageschluessel": {
-            "type": "string",
-            "enum": [
-              "M Miteigentumsanteile",
-              "E Anzahl Einheiten",
-              "M Direkte Zuordnung",
-              "E Miteigentumsanteile"
-            ]
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Umlageschlüssel so, wie die Abrechnung ihn nennt, etwa Miteigentumsanteile, Anzahl Einheiten oder direkte Zuordnung. null, wenn die Abrechnung keinen nennt."
           },
           "anteil_gesamt": {
             "type": "number"
@@ -313,7 +311,7 @@
         },
         "sonstige_zufuehrung": {
           "type": "number",
-          "description": "z. B. Entnahme -3000"
+          "description": "Weitere Zuführung oder Entnahme im Abrechnungsjahr. Eine Entnahme ist negativ."
         },
         "zinsen_netto": {
           "type": "number"
@@ -351,34 +349,9 @@
     },
     "offene_punkte": {
       "type": "array",
-      "description": "Unstimmigkeiten, Differenzen oder Rückstände, die nicht stillschweigend korrigiert werden",
+      "description": "Unstimmigkeiten, Differenzen oder Rückstände, die nicht stillschweigend korrigiert werden. Ein Eintrag zu einer Lücke, die korrelation_zahlungen.py meldet, beginnt mit ihrem Schlüssel (siehe luecken.py).",
       "items": {
         "type": "string"
-      }
-    }
-  },
-  "$defs": {
-    "fundstelle": {
-      "type": "object",
-      "required": [
-        "datei",
-        "seite"
-      ],
-      "description": "Herkunft eines Werts. pruefe_belege.py prüft, ob die Datei existiert und die Seite im PDF liegt.",
-      "properties": {
-        "datei": {
-          "type": "string",
-          "description": "Pfad relativ zum Projektordner"
-        },
-        "seite": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Seite der PDF-Datei, gezählt wie bei Quellenlinks"
-        },
-        "position": {
-          "type": "string",
-          "description": "Zeile oder Position auf der Seite"
-        }
       }
     }
   }
