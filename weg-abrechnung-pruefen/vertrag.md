@@ -22,9 +22,10 @@ Beschlüsse zum Vertrag und zu Ermächtigungen des Vertragspartners.
 5. **Preisanpassung ohne Beschluss:** Indexklauseln, Weitergabe von Kosten Dritter und Beträge mit „z. Zt.“.
 6. **Widersprüche und Fehler:** im neuen Text und in der alten Fassung. Ein Widerspruch der alten Fassung schwächt
    Argumente, die sich auf sie stützen.
-7. **Gewichtung:** Ergebnis und Änderungswünsche sind in „wichtig“ und „akzeptabel oder nachrangig“ geteilt,
-   Verbesserungen stehen getrennt. Die Änderungswünsche stehen in einem nummerierten Abschnitt und sind über beide
-   Gruppen fortlaufend nummeriert (etwa 5.1 bis 5.12), damit andere Unterlagen sie zitieren können.
+7. **Gewichtung:** Ergebnis und Änderungswünsche sind in die Unterabschnitte `### Wichtig` und
+   `### Akzeptabel oder nachrangig` geteilt (siehe „Prüfpunkte im Bericht“ in [SKILL.md](SKILL.md)). Verbesserungen
+   stehen getrennt. Die Änderungswünsche stehen in einem nummerierten Abschnitt und sind über beide Gruppen
+   fortlaufend nummeriert (etwa 5.1 bis 5.12), damit andere Unterlagen sie zitieren können.
 
 Wünscht der Nutzer den neuen Vertrag mit markierten Prüfpunkten und Änderungen, erzeuge ihn danach mit dem Skill
 `pdf-annotate`.

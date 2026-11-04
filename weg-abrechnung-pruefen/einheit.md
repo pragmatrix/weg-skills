@@ -18,8 +18,11 @@ Teilungserklärung (MEA), Beschlüsse zu Verteilerschlüsseln, Heizkostenabrechn
    Grund- und Verbrauchskosten. Vergleiche den Verbrauch der Einheit mit dem normierten Durchschnittsnutzer.
 5. **Rücklage der Einheit:** Der Anteil an Zuführung und Entnahmen folgt demselben Schlüssel wie im Wirtschaftsplan.
    Ein fester Betrag, der zu keinem Schlüssel passt, ist eine Frage an die Verwaltung.
-6. **Soll-Vorschüsse:** Das Soll-Hausgeld ist der monatliche Vorschuss laut Wirtschaftsplan × 12. Es ist für das
-   Abrechnungsjahr beschlossen oder gilt nach einem Beschluss fort.
+6. **Soll-Vorschüsse:** Das Soll-Hausgeld ist die Summe der monatlichen Vorschüsse des Abrechnungsjahres. Gilt im
+   ganzen Jahr derselbe Wirtschaftsplan, ist das sein monatlicher Vorschuss × 12. Gilt ab einem Monat im Jahr ein
+   neuer Plan (Punkt 8 der [Checkliste Wirtschaftsplan](wirtschaftsplan.md)), rechnest du je Geltungszeitraum den
+   monatlichen Vorschuss × Zahl seiner Monate und addierst. Jeder Plan ist für seinen Zeitraum beschlossen oder gilt
+   nach einem Beschluss fort.
 7. **Zahlungen:** Die gebuchten Zahlungen stimmen mit den eigenen Kontoauszügen überein, soweit der Nutzer sie
    liefert. Ausgewiesene Rückstände sind mit Monaten benannt. Ein Rückstand an Vorschüssen ist seit dem Termin im
    Wirtschaftsplan fällig (§ 28 Abs. 1 WEG). Die Abrechnung führt ihn nur nachrichtlich, und der Beschluss über die

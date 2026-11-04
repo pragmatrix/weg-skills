@@ -18,8 +18,12 @@ Schriftverkehr in `Verwaltung/`, Vorgänge in `Vorgänge/` (Übersicht `Vorgäng
 3. **Nachweis suchen:** Für jeden Beschluss aus Punkt 2 suchst du die Stelle, an der die Umsetzung sichtbar sein
    müsste, mit `grep -r --include='*.md'`. Beispiele: Rücklagenhöhe im Wirtschaftsplan, Verwaltervertrag im Ordner der
    Verwaltung, Auftrag oder Rechnung in der Abrechnung.
-4. **Status je Beschluss:** umgesetzt (mit Beleg), nicht umgesetzt (mit Beleg des Gegenteils), noch nicht fällig
-   (Fälligkeitsdatum), nicht prüfbar (fehlendes Dokument nennen).
+4. **Status je Beschluss:** Jeder Beschluss bekommt einen der vier Status aus Schritt 3 von `SKILL.md`.
+   - **stimmt** heißt umgesetzt. Der Beleg zeigt die Umsetzung.
+   - **Abweichung** heißt nicht umgesetzt. Der Beleg zeigt das Gegenteil.
+   - **Frage** heißt, die Umsetzung ist unklar und die Verwaltung muss sie erklären.
+   - **nicht prüfbar** nennt den Grund. Das ist entweder das fehlende Dokument oder „fällig ab <Datum>“ für einen
+     Beschluss, der noch nicht fällig ist.
 5. **Folgen beziffern:** Bei einem nicht umgesetzten Beschluss mit Geldwirkung rechnest du die Differenz aus, für
    die Gemeinschaft und die Einheiten des Nutzers.
 6. **Fristen:** Anfechtungsfrist eines fehlerhaften Beschlusses (§ 45 WEG: Klage binnen eines Monats, Begründung
