@@ -28,8 +28,9 @@ steht in der `AGENTS.md` des Projekts und in `Vermietung/README.md`. Lies beide 
 
 1. **WEG-Anteil und Mieter-Anteil sind verschieden.** Die Einzelabrechnung der WEG mischt Bewirtschaftung, Rücklage
    und Erhaltung. Jede Position wird einzeln auf Umlagefähigkeit geprüft (§ 556 BGB mit BetrKV).
-2. **Jede Position hat eine Fundstelle:** BetrKV-Nummer und Herkunft in der Datenbasis als Feld `fundstelle` (siehe
-   `schema.md` im Skill `weg-konten-belege`).
+2. **Jede Position hat eine Herkunft.** Das Feld `betrkv` nennt die Nummer der BetrKV. Das Feld `fundstelle` (siehe
+   `schema.md` im Skill `weg-konten-belege`) nennt die Stelle im Beleg, oder `berechnung` nennt den Rechenweg.
+   `just nebenkosten-pruefen` meldet jede Position, der eines davon fehlt.
 3. **Nicht umlagefähige Positionen werden dokumentiert**, mit Begründung unter `nicht_aufgenommen`.
 4. **Platzhalter tragen eine `warnung`:** ein Wert ohne Beleg im Jahr, etwa Grundsteuer ohne Bescheid oder CO₂ ohne
    Literangabe. Jeder Platzhalter steht auch unter `folgepruefungen`.
@@ -48,17 +49,21 @@ steht in der `AGENTS.md` des Projekts und in `Vermietung/README.md`. Lies beide 
 | Müllgebühren | ja | § 2 Nr. 8 |
 | Gartenpflege, nur die gärtnerische Pflege | ja | § 2 Nr. 10 |
 | Instandhaltung, Reparaturen, Schadenssanierung | nein | Vermietersache (§ 535 BGB) |
-| Baumfällung, Erneuerung von Gehölzen | nein | fällt nicht unter Nr. 10 |
+| Baumfällung, Erneuerung von Pflanzen und Gehölzen | ja | § 2 Nr. 10, für das Fällen eines kranken Baums BGH, Urteil vom 10.11.2021, VIII ZR 107/20 |
+| Neuanlage oder Umgestaltung des Gartens | nein | keine Pflege, sondern Herstellung oder Modernisierung |
 | Verwaltervergütung, Bankspesen, Porto | nein | Verwaltungskosten |
 | Zuführung zur Rücklage, Sonderumlage | nein | Aufwand des Eigentümers |
 | Restforderung oder Abschlussausgleich eines Versorgers | nein | schon in der Jahreskostenposition enthalten |
 
 ## CO₂-Kosten
 
-Die Aufteilung folgt dem **Stufenmodell** der Anlage zum CO2KostAufG (§ 5), nie einer Pauschale.
+Die Aufteilung folgt dem **Stufenmodell** der Anlage zum CO2KostAufG (§ 5), nie einer Pauschale. Die Stufe gilt für
+das ganze Gebäude. Liter und Wohnfläche sind deshalb die des Gebäudes, nie der Anteil der Einheit. Nennt die
+Heizkostenabrechnung des Messdienstes die Stufe oder den CO₂-Ausstoß je m², gilt diese Angabe.
 
 ```
-Liter Heizöl × 2,664 kg CO₂/l ÷ Wohnfläche (m²) → kg CO₂/m²/a → Stufe → Anteil Mieter und Vermieter
+Gesamtliter Heizöl des Gebäudes × 2,664 kg CO₂/l ÷ Gesamtwohnfläche des Gebäudes (m²)
+  → kg CO₂/m²/a → Stufe → Anteil Mieter und Vermieter
 ```
 
 Der Faktor 2,664 kg CO₂ je Liter ergibt sich aus 10 kWh je Liter × 0,2664 kg CO₂ je kWh. Die oft genannten 3,17 kg
@@ -78,8 +83,8 @@ gelten je Kilogramm Heizöl, nicht je Liter.
 | ≥ 52 | 5 % | 95 % |
 
 Den CO₂-Preis nach BEHG für das Abrechnungsjahr schlägst du nach (2025: 55 €/t, rund 0,15 € je Liter Heizöl). Ohne
-Liter und Wohnfläche gibt es keine Berechnung. Bis dahin steht der Vorjahresbetrag als Platzhalter mit `warnung`, und
-die Lieferscheine werden bei der Verwaltung angefordert.
+die Liter und die Wohnfläche des Gebäudes gibt es keine Berechnung. Bis dahin steht der Vorjahresbetrag als
+Platzhalter mit `warnung`, und die Lieferscheine werden bei der Verwaltung angefordert.
 
 ## Template-Verfahren
 
@@ -94,8 +99,9 @@ Die Rezepte liegen in `nebenkosten.just` neben dieser Datei. Die `justfile` des 
 - `just nebenkosten JAHR [VORLAGE]` baut die Abrechnung. Ohne Vorlage nimmt es die `*Nebenkostenabrechnung*.xlsx` in
   `Vermietung/<JAHR-1>/`. Liegt dort nur eine `.xls`, bricht es ab. Der Nutzer konvertiert sie dann einmal in Excel
   oder Numbers nach `.xlsx`.
-- `just nebenkosten-pruefen JAHR [VORLAGE]` prüft Positionen, Summe, Vorauszahlung und Nachzahlung gegen die
-  Datenbasis und das Format gegen die Vorlage. Exit-Code 0 heißt bestanden.
+- `just nebenkosten-pruefen JAHR [VORLAGE]` prüft Positionen, Summe, Vorauszahlung, Nachzahlung oder Guthaben,
+  Datum und Jahreszahlen gegen die Datenbasis und das Format gegen die Vorlage. Ist das Ergebnis negativ, heißt die
+  Zeile „Ihr Guthaben“ und zeigt den Betrag positiv. Exit-Code 0 heißt bestanden.
 
 Beide brauchen `openpyxl`. Sie laufen mit dem Python eines venv in `$TMPDIR`
 (`python3 -m venv "$TMPDIR/nk-venv" && "$TMPDIR/nk-venv/bin/pip" install openpyxl`). Dann ruft man sie als
@@ -109,11 +115,16 @@ Nachzahlung erscheinen erst beim Öffnen in Excel oder Numbers, deshalb rechnet 
 2. **Positionen ableiten.** Entscheide für jede Kostenposition der Einzelabrechnung die Umlagefähigkeit nach der
    Tabelle. Begründe den Verteilungsschlüssel (MEA, Fläche, Einheiten). Gebühren mit eigenem Maßstab gibst du mit
    diesem Maßstab weiter, etwa Niederschlagswasser nach versiegelter Fläche oder Einheiten statt nach Verbrauch.
+   Fertig ist der Schritt, wenn jede Kostenposition der Einzelabrechnung entschieden ist, als umlagefähig mit
+   BetrKV-Nummer und Verteilungsschlüssel oder als nicht umlagefähig mit Begründung.
 3. **Vorauszahlungen** des Mieters ansetzen, laut Mietvertrag und Zahlungseingang. Das Hausgeld der WEG zählt hier
-   nicht.
+   nicht. Fertig ist der Schritt, wenn der Betrag den Zahlungseingängen des Jahres entspricht oder die Abweichung
+   unter `folgepruefungen` steht.
 4. **JSON schreiben.** Jede Position hat `position`, `betrag`, `betrkv`, `umlagefaehig`, `fundstelle` bzw.
-   `berechnung` und bei Bedarf `warnung`. Dazu kommen `nicht_aufgenommen`, `summen` mit `vorauszahlung`,
-   `entscheidungen`, `folgepruefungen` und `verifizierungsfragen`. Prüfe die Syntax mit `python3 -m json.tool`.
+   `berechnung` und bei Bedarf `warnung`. Dazu kommen `datum_abrechnung` (JJJJ-MM-TT, nach dem Abrechnungsjahr),
+   `nicht_aufgenommen`, `summen` mit `vorauszahlung`, `entscheidungen`, `folgepruefungen` und `verifizierungsfragen`.
+   Fertig ist der Schritt, wenn `python3 -m json.tool` die Datei ohne Fehler liest und jede Kostenposition aus Schritt 2
+   unter `positionen` oder `nicht_aufgenommen` steht.
 5. **Entscheidungsdokument** schreiben, mit Umlage-Tabelle, Entscheidungen, Checkliste der Folgeprüfungen und
    Unklarheiten. Es folgt den Regeln zu Quellenlinks und Gliederung im Skill `weg-eigentuemer-ablage`. Fertig ist es,
    wenn `just qa` nichts mehr meldet.
@@ -140,7 +151,7 @@ Nachzahlung erscheinen erst beim Öffnen in Excel oder Numbers, deshalb rechnet 
 ## Abbruch
 
 - Der Verteilungsschlüssel im Mietvertrag ist unklar (Wohnfläche oder Anteile): Frage den Nutzer.
-- Liter oder Wohnfläche fehlen: Die CO₂-Position steht nur als Platzhalter mit `warnung` und Folgeprüfung in der
-  Abrechnung.
+- Liter oder Wohnfläche des Gebäudes fehlen: Die CO₂-Position steht nur als Platzhalter mit `warnung` und
+  Folgeprüfung in der Abrechnung.
 - Der Grundsteuerbescheid fehlt: Der Vorjahresbetrag steht nur mit `warnung` in der Abrechnung, und vor dem Versand
   wird er gegen den Bescheid geprüft.
