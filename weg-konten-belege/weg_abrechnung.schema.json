@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "weg_abrechnung.schema.json",
+  "title": "WEG-Einzelabrechnung – Eckdaten einer Einheit (weg_abrechnung_JJJJ_weN.json)",
+  "description": "Extraktion der wichtigsten Eckdaten aus der Einzelabrechnung einer Einheit. Alle Beträge in EUR, zwei Dezimalstellen, Komma-Format wie im PDF in Zahlen konvertiert. Jedes Objekt darf ein Feld \"fundstelle\" tragen (siehe $defs.fundstelle), aus dem ein Bericht den Quellenlink bildet.",
+  "type": "object",
+  "required": [
+    "gemeinschaft",
+    "abrechnungszeitraum",
+    "einheit",
+    "ergebnis",
+    "zahlungen",
+    "vorjahre",
+    "kostenpositionen",
+    "rueckstellungen",
+    "pruefsummen"
+  ],
+  "properties": {
+    "gemeinschaft": {
+      "type": "object",
+      "required": [
+        "name",
+        "ort",
+        "verwalter",
+        "anteile_gesamt"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "ort": {
+          "type": "string"
+        },
+        "verwalter": {
+          "type": "string"
+        },
+        "anteile_gesamt": {
+          "type": "number",
+          "description": "Summe der Miteigentumsanteile"
+        }
+      }
+    },
+    "abrechnungszeitraum": {
+      "type": "object",
+      "required": [
+        "von",
+        "bis",
+        "tage",
+        "datum_abrechnung"
+      ],
+      "properties": {
+        "von": {
+          "type": "string",
+          "format": "date"
+        },
+        "bis": {
+          "type": "string",
+          "format": "date"
+        },
+        "tage": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "datum_abrechnung": {
+          "type": "string",
+          "format": "date"
+        }
+      }
+    },
+    "einheit": {
+      "type": "object",
+      "required": [
+        "nummer",
+        "bezeichnung",
+        "eigentuemer",
+        "anteile",
+        "umlage_anteile"
+      ],
+      "properties": {
+        "nummer": {
+          "type": "integer"
+        },
+        "bezeichnung": {
+          "type": "string"
+        },
+        "eigentuemer": {
+          "type": "string"
+        },
+        "anteile": {
+          "type": "number",
+          "description": "Miteigentumsanteile der Einheit"
+        },
+        "umlage_anteile": {
+          "type": "object",
+          "properties": {
+            "miteigentumsanteile": {
+              "type": "number"
+            },
+            "anzahl_einheiten": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "ergebnis": {
+      "type": "object",
+      "description": "Kernergebnis der Einzelabrechnung (Seite 1 bzw. Übersicht Seite 5)",
+      "required": [
+        "bewirtschaftungskosten",
+        "beitragsverpflichtung_rueckstellung",
+        "abrechnungssumme",
+        "hausgeld_soll",
+        "hausgeld_ist",
+        "abrechnungsspitze",
+        "hausgeldrueckstand_wirtschaftsplan",
+        "abrechnungssaldo"
+      ],
+      "properties": {
+        "bewirtschaftungskosten": {
+          "type": "number",
+          "description": "Ihr Anteil an 'Ergebnis Ausgaben'"
+        },
+        "beitragsverpflichtung_rueckstellung": {
+          "type": "number",
+          "description": "Ihr Anteil Rücklagenzuführung"
+        },
+        "abrechnungssumme": {
+          "type": "number",
+          "description": "Summe aus Bewirtschaftungskosten + Beitragsverpflichtung"
+        },
+        "hausgeld_soll": {
+          "type": "number",
+          "description": "Soll gem. Einzelwirtschaftsplan incl. ggf. Sonderumlagen"
+        },
+        "hausgeld_ist": {
+          "type": "number",
+          "description": "Tatsächliche Zahlungseingänge im Abrechnungsjahr (Bewirtschaftung + Rückstellung + Sonderumlage)"
+        },
+        "hausgeldrueckstand_wirtschaftsplan": {
+          "type": "number",
+          "description": "Hausgeld-Soll minus Zahlungseingang, hier 65,96"
+        },
+        "abrechnungsspitze": {
+          "type": "number",
+          "description": "Abrechnungssumme minus Hausgeld-Soll, hier 1044,87"
+        },
+        "abrechnungssaldo": {
+          "type": "number",
+          "description": "Abrechnungsspitze minus Hausgeldrückstand (aus Vorzahlungsplan abgeleitet), hier 1110,83"
+        },
+        "fehlebetrag_gesamt": {
+          "type": "number",
+          "description": "Abrechnungssaldo plus Nachzahlung aus Vorjahren"
+        },
+        "abrechnungsspitze_note": {
+          "type": "string",
+          "description": "Kette laut Übersicht (Spalte 5+7): Abrechnungssaldo = Abrechnungsspitze + Hausgeldrückstand (Rückstand positiv = Forderung)"
+        }
+      }
+    },
+    "zahlungen": {
+      "type": "object",
+      "required": [
+        "zeitraum_summe",
+        "liste"
+      ],
+      "properties": {
+        "zeitraum_summe": {
+          "type": "object",
+          "description": "Fusszeile der Zahlungstabelle (Seite 2)",
+          "required": [
+            "gesamt",
+            "bewirtschaftung",
+            "ruecklage",
+            "sonderumlage"
+          ],
+          "properties": {
+            "gesamt": {
+              "type": "number"
+            },
+            "bewirtschaftung": {
+              "type": "number"
+            },
+            "ruecklage": {
+              "type": "number"
+            },
+            "sonderumlage": {
+              "type": "number"
+            }
+          }
+        },
+        "liste": {
+          "type": "array",
+          "description": "Zahlungseingänge im Abrechnungszeitraum",
+          "items": {
+            "type": "object",
+            "required": [
+              "datum",
+              "betrag",
+              "bewirtschaftung",
+              "ruecklage",
+              "sonderumlage"
+            ],
+            "properties": {
+              "datum": {
+                "type": "string",
+                "format": "date"
+              },
+              "betrag": {
+                "type": "number"
+              },
+              "bewirtschaftung": {
+                "type": "number"
+              },
+              "ruecklage": {
+                "type": "number"
+              },
+              "sonderumlage": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "vorjahre": {
+      "type": "object",
+      "required": [
+        "abrechnungsergebnis",
+        "zahlungseingang",
+        "saldo"
+      ],
+      "properties": {
+        "abrechnungsergebnis": {
+          "type": "number",
+          "description": "Abrechnungsergebnis aus Vorjahr(en), hier 811,56"
+        },
+        "zahlungseingang": {
+          "type": "number",
+          "description": "Zahlungseingang auf Vorjahren-Saldo (negativ = Guthaben), hier -216,88"
+        },
+        "saldo": {
+          "type": "number",
+          "description": "Nachzahlung aus Vorjahr(en), hier 1028,44"
+        }
+      }
+    },
+    "kostenpositionen": {
+      "type": "array",
+      "description": "Einzelpositionen der Ausgaben / Bewirtschaftungskosten (Ihr Anteil)",
+      "items": {
+        "type": "object",
+        "required": [
+          "konto",
+          "umlageschluessel",
+          "anteil_gesamt",
+          "anteil_einheit",
+          "betrag_gesamt",
+          "betrag_einheit"
+        ],
+        "properties": {
+          "konto": {
+            "type": "string"
+          },
+          "umlageschluessel": {
+            "type": "string",
+            "enum": [
+              "M Miteigentumsanteile",
+              "E Anzahl Einheiten",
+              "M Direkte Zuordnung",
+              "E Miteigentumsanteile"
+            ]
+          },
+          "anteil_gesamt": {
+            "type": "number"
+          },
+          "anteil_einheit": {
+            "type": "number"
+          },
+          "betrag_gesamt": {
+            "type": "number"
+          },
+          "betrag_einheit": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "rueckstellungen": {
+      "type": "object",
+      "required": [
+        "anfangsbestand_soll",
+        "beitragsverpflichtung",
+        "sonstige_zufuehrung",
+        "zinsen_netto",
+        "endbestand_soll",
+        "endbestand_ist",
+        "anfangsbestand_ist"
+      ],
+      "properties": {
+        "anfangsbestand_ist": {
+          "type": "number",
+          "description": "Rücklage-Endbestand IST zum Jahresanfang"
+        },
+        "anfangsbestand_soll": {
+          "type": "number",
+          "description": "Rücklage-Endbestand SOLL zum Jahresanfang"
+        },
+        "beitragsverpflichtung": {
+          "type": "number",
+          "description": "Beschlossene Zuführung im Abrechnungsjahr (Gesamt)"
+        },
+        "sonstige_zufuehrung": {
+          "type": "number",
+          "description": "z. B. Entnahme -3000"
+        },
+        "zinsen_netto": {
+          "type": "number"
+        },
+        "endbestand_ist": {
+          "type": "number",
+          "description": "Rücklage-Endbestand zum Jahresende IST"
+        },
+        "endbestand_soll": {
+          "type": "number",
+          "description": "Rücklage-Endbestand zum Jahresende SOLL"
+        }
+      }
+    },
+    "pruefsummen": {
+      "type": "object",
+      "description": "Kontrollsummen aus der Gesamtdarstellung zur Konsistenzprüfung",
+      "properties": {
+        "anfangsbestand_konten_gesamt": {
+          "type": "number"
+        },
+        "ende_bestand_konten_gesamt": {
+          "type": "number"
+        },
+        "summe_einnahmen": {
+          "type": "number"
+        },
+        "summe_ausgaben": {
+          "type": "number"
+        },
+        "verteilungsrelevante_betraege": {
+          "type": "number"
+        }
+      }
+    },
+    "offene_punkte": {
+      "type": "array",
+      "description": "Unstimmigkeiten, Differenzen oder Rückstände, die nicht stillschweigend korrigiert werden",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "fundstelle": {
+      "type": "object",
+      "required": [
+        "datei",
+        "seite"
+      ],
+      "description": "Herkunft eines Werts. pruefe_belege.py prüft, ob die Datei existiert und die Seite im PDF liegt.",
+      "properties": {
+        "datei": {
+          "type": "string",
+          "description": "Pfad relativ zum Projektordner"
+        },
+        "seite": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seite der PDF-Datei, gezählt wie bei Quellenlinks"
+        },
+        "position": {
+          "type": "string",
+          "description": "Zeile oder Position auf der Seite"
+        }
+      }
+    }
+  }
+}
