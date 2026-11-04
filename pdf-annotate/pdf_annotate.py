@@ -23,14 +23,16 @@ for an unchanged passage). `underline` then lists the words of the passage that 
 
 A passage starts at `text`. When it spans several lines, `end` names its end. `text` and `end` must each lie within one
 line of the PDF. When one occurs several times on the page, `match` and `end_match` (counting from 1) select the
-occurrence, or `in` names a line in which `text` is searched. An entry in `underline` is either just a `text` or a table
-with the same keys as a passage.
+occurrence. Alternatively, `in` names a longer text that occurs once on the page, and `text` must start within the words
+of that text. An entry in `underline` is either just a `text` or a table with the same keys as a passage.
 
-A report item is a list entry that starts with its number (`- 2.1 **Title** Text`). Its indented lines belong to it. An
-item can also be a table row as the statement audits use (`| 1.4b | Check | Status | Finding | Evidence |`). The script
-copies the text of each item into the note of the annotation. The colour follows the item's weight in the report. Red
-marks an item under a heading "Wichtig" or with the status "Abweichung". Blue marks an item from the section named
-"Fehler". Yellow marks everything else. With several items, the strongest colour wins.
+The report items follow the format that the section "Prüfpunkte im Bericht" of the skill `weg-abrechnung-pruefen`
+defines. An item is a list entry or a checklist entry that starts with its number, or a table row with the number in the
+column "Nr.". The script copies the text of each item into the note of the annotation.
+
+The colour follows the item's weight in the report. Red marks an item under a `###` heading that starts with "Wichtig",
+such as `### Wichtig`, or an item with the status "Abweichung". Blue marks any other item from the section that
+`sections` names "Fehler". Yellow marks everything else. With several items, the strongest colour wins.
 
 Each passage is highlighted and carries the note as a comment. In a comparison the note starts with the change against
 the earlier version, and the changed words are underlined. The item numbers stand in the right margin so that they show
@@ -59,44 +61,80 @@ MEANING = {
 UNDERLINE = (0.8, 0.15, 0.0)
 # Bullets in front of list entries do not belong to the annotated passage.
 BULLETS = {"-", "–", "•"}
-ITEM = re.compile(r"- (\d)\.(\d+[a-z]?) (.*)")
-TABLE_ITEM = re.compile(r"\| (\d)\.(\d+[a-z]?) \| (.*) \|$")
+# An item number has the section number in front and may have more levels and a letter: 2.1, 1.2.3, 1.4b.
+NUMBER = r"(\d+)\.\d+(?:\.\d+)*[a-z]?"
+ITEM = re.compile(rf"- ({NUMBER}) (.*)")
+# The checkbox of a checklist entry goes before the item number (`- [ ] 6.1 Text`).
+CHECKBOX = re.compile(r"^(\s*)- \[[ xX]\] ")
+SEPARATOR = re.compile(r":?-+:?")
 # Bold markers and the brackets around link texts (after `plain`) would clutter the note.
 WITHOUT_MARKDOWN = str.maketrans("", "", "*[]")
+
+
+def cells(row):
+    """The cells of a Markdown table row, stripped. An escaped `\\|` stays inside its cell."""
+    inner = re.sub(r"^\||(?<!\\)\|$", "", row.strip())
+    return [cell.strip().replace("\\|", "|") for cell in re.split(r"(?<!\\)\|", inner)]
+
+
+def weight(heading, section, status=None):
+    """The colour of an item from its `###` heading, the name of its section, and its status."""
+    if heading.casefold().startswith("wichtig") or status == "Abweichung":
+        return "important"
+    return "error" if section == "Fehler" else "note"
 
 
 def report_items(md, sections):
     """Reads the numbered items of the report from the given sections: number → (weight, note text)."""
     result = {}
-    section = weight = number = None
-    for line in plain(md).translate(WITHOUT_MARKDOWN).split("\n"):
+    heading = ""
+    number = header = None
+    for line in plain(md).split("\n"):
+        line = CHECKBOX.sub(r"\1- ", line).translate(WITHOUT_MARKDOWN)
+        if not line.startswith("|"):
+            header = None
         if line.startswith("## "):
-            section = line[3:4]
-            weight = number = None
+            heading, number = "", None
         elif line.startswith("### "):
-            weight = line[4:].strip()
+            heading, number = line[4:].strip(), None
+        elif (m := ITEM.match(line)) and m[2] in sections:
+            number = m[1]
+            result[number] = [weight(heading, sections[m[2]]), f"{sections[m[2]]} {number}: {m[3].strip()}"]
+        elif line.startswith("|"):
             number = None
-        elif (m := ITEM.match(line)) and m[1] in sections:
-            number = f"{m[1]}.{m[2]}"
-            if weight == "Wichtig":
-                kind = "important"
-            elif sections[m[1]] == "Fehler":
-                kind = "error"
-            else:
-                kind = "note"
-            result[number] = [kind, f"{sections[m[1]]} {number}: {m[3].strip()}"]
-        elif (m := TABLE_ITEM.match(line)) and m[1] in sections:
-            number = f"{m[1]}.{m[2]}"
-            check, status, finding, evidence = (cell.strip() for cell in m[3].split(" | "))
-            kind = "important" if status == "Abweichung" else "note"
-            text = f"{sections[m[1]]} {number}: {check} ({status}). {finding} Beleg: {evidence}"
-            result[number] = [kind, text]
-            number = None
+            row = cells(line)
+            if header is None:
+                header = [cell.rstrip(".") for cell in row]
+            elif not all(SEPARATOR.fullmatch(cell) for cell in row) and (item := table_item(header, row, sections)):
+                row_number, section, status, text = item
+                result[row_number] = [weight(heading, section, status), text]
         elif number and line.startswith("  ") and line.strip():
             result[number][1] += ("\n" if line.strip().startswith("- ") else " ") + line.strip()
         else:
             number = None
     return result
+
+
+def table_item(header, row, sections):
+    """Number, section name, status, and note text of a table row, or None when the row is no item of `sections`.
+
+    The column "Nr." holds the number, and without such a column the first column does. The first other cell names the
+    item. The status follows in brackets, and every further cell that is not empty follows with its column name.
+    """
+    row = (row + [""] * len(header))[: len(header)]
+    keys = [name.casefold() for name in header]
+    nr = keys.index("nr") if "nr" in keys else 0
+    m = re.fullmatch(NUMBER, row[nr])
+    if not m or m[1] not in sections:
+        return None
+    status = row[keys.index("status")] if "status" in keys else ""
+    others = [(name, cell) for i, (name, cell) in enumerate(zip(header, row)) if i != nr and keys[i] != "status"]
+    title = others[0][1] if others else ""
+    text = f"{sections[m[1]]} {row[nr]}: {title}" + (f" ({status})." if status else ".")
+    for name, cell in others[1:]:
+        if cell:
+            text += f" {name}: {cell}" + ("" if cell.endswith((".", "!", "?")) else ".")
+    return row[nr], sections[m[1]], status, text
 
 
 def fits(words, i, parts):
@@ -135,7 +173,7 @@ def locate(page, words, text, match, frame=None):
 def lines(page, words, start, stop):
     """The lines of the passage from word `start` to word `stop`, one rectangle per line.
 
-    The passage covers the words in between in the order in which they are stored in the PDF. With two columns (basic
+    The passage covers the words in between in reading order (see `reading_order`). With two columns (basic
     services on the left, special services on the right) only words from the passage's column count. The passage lies
     in one column when its first text block is narrower than half the page and its start and end lie on the same half
     of the page.
@@ -195,11 +233,14 @@ def annotate(toml_path):
     words = [reading_order(page.get_text("words")) for page in original]
     used = set()
     colours = set()
-    # Bottom edge of the last label per page, so that labels of passages close together do not overlap
+    # The marks are placed per page from top to bottom. A label then only needs to stay below the previous label of its
+    # page, whose bottom edge `occupied` holds, so that labels of passages close together do not overlap.
     occupied = {}
+    placed = []
     for mark in marks["mark"]:
         page = doc[mark["page"] - 1]
-        top, rects = passage(page, words[page.number], mark)
+        placed.append((mark, page, *passage(page, words[page.number], mark)))
+    for mark, page, top, rects in sorted(placed, key=lambda p: (p[1].number, p[2])):
         if bool(previous) != ("change" in mark) or not previous and "underline" in mark:
             raise SystemExit(f"p. {mark['page']}: \"{mark['text']}\": `change` and `underline` only with `previous`")
         change = [f"Änderung gegenüber {previous}: {mark['change']}"] if previous else []

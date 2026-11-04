@@ -27,11 +27,9 @@ regenerate the PDF. The reports, the PDFs, and their readers are German, so the 
 
 ## Steps
 
-1. **Read the audit report.** The script takes items that start as a list entry with a number
-   (`- 2.1 **Titel** Text`), together with their indented continuation lines. It also takes the table rows of the
-   statement audits (`| 1.4b | Prüfpunkt | Status | Befund | Beleg |`). Items under a heading `### Wichtig` or with
-   the status "Abweichung" turn red, items from the section that the mark list names "Fehler" turn blue, and all
-   others turn yellow. The step is done when you know which sections contain items with a passage in the PDF.
+1. **Read the audit report.** The script reads the items in the format of the section "Prüfpunkte im Bericht" of the
+   skill `weg-abrechnung-pruefen`. The colour of each item follows the rules in the script's docstring. The step is
+   done when you know which sections contain items with a passage in the PDF.
 2. **Create the mark list.** Name: `<report without .md>_Markierungen.toml` next to the report. Output:
    `<name of the PDF> markiert.pdf` next to the PDF. For this ending `just md` produces no text MD, because
    `scripts/pdf2md-ignore.txt` in the project lists the pattern `*markiert.pdf`. When it is missing there, add it.
@@ -57,8 +55,9 @@ regenerate the PDF. The reports, the PDFs, and their readers are German, so the 
    The step is done when every mark has a `change` and every changed passage its underline.
 4. **Generate.** `just annotate MARKS.toml`. When the script stops at an anchor, the anchor was not found exactly once
    within one line. Select the occurrence with `match` or `in`, or take another anchor. For the legend, find an empty
-   area: `mutool draw -r 72 -o tmp/markiert/legende.png PDF PAGE` renders the page so that pixels and points match. At
-   the end the script reports the items without a mark. Each of them needs a reason from step 2.
+   area: `mkdir -p tmp/markiert`, then `mutool draw -r 72 -o tmp/markiert/legende.png PDF PAGE` renders the page so
+   that pixels and points match. At the end the script reports the items without a mark. Each of them needs a reason
+   from step 2.
 5. **Check the rendering.** `mutool draw -r 90 -o "tmp/markiert/s%d.png" OUTPUT.pdf` renders all pages. Look at every
    page with a mark:
    - The highlight covers exactly the passage and stays in its column.
