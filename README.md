@@ -52,6 +52,12 @@ In a new project, ask the agent to set it up next. The section "Neues Projekt ei
 
 To update, run `git pull` in the clone.
 
+## Tests
+
+The tests in `tests/` run from the repository root with `python3 -m unittest discover -s tests`. Tests that need
+`openpyxl` or PyMuPDF are skipped without them, and
+`uv run --with openpyxl --with pymupdf python -m unittest discover -s tests` runs them all.
+
 ## License
 
 [MIT](./LICENSE)
