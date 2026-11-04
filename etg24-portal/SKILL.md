@@ -137,7 +137,7 @@ Was der Reiter „Stimmen“ zeigt, steht in Klammern dahinter.
 ## Werkzeuge
 
 Helfer und Skripte liegen neben dieser Datei, `<Skill-Ordner>` steht unten für diesen Ordner. Die `justfile` des
-Projekts bindet die Rezepte ein mit `import '~/.claude/skills/etg24-portal/etg24.just'`, dazu die Rezepte des Skills
+Projekts bindet die Rezepte ein mit `import '.claude/skills/etg24-portal/etg24.just'`, dazu die Rezepte des Skills
 `weg-eigentuemer-ablage`. Fehlt der Import, trägst du ihn ein. Ein neues Projekt richtet
 der Skill `weg-eigentuemer-ablage` ein (Abschnitt Neues Projekt einrichten). Die Skripte nutzen `find_dupes.py` aus
 `weg-eigentuemer-ablage`. Beide Skills müssen deshalb im selben Ordner installiert sein.

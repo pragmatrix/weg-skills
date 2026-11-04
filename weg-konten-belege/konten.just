@@ -1,5 +1,5 @@
 # Rezepte des Skills weg-konten-belege. Die justfile des Projekts bindet sie ein mit
-#   import '~/.claude/skills/weg-konten-belege/konten.just'
+#   import '.claude/skills/weg-konten-belege/konten.just'
 # Sie laufen im Projektordner und rufen die Skripte neben dieser Datei auf.
 
 # Datenbasis eines Abrechnungsjahres prüfen: Saldo-Ketten, Buchungslisten, Rechnungssummen, Fundstellen (Exit-Code 1)

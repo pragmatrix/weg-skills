@@ -29,7 +29,7 @@ noch einmal herzuleiten.
 ## Werkzeuge
 
 Die Rezepte liegen in `konten.just` neben dieser Datei. Die `justfile` des Projekts bindet sie ein mit
-`import '~/.claude/skills/weg-konten-belege/konten.just'`. Fehlt der Import, trägst du ihn ein.
+`import '.claude/skills/weg-konten-belege/konten.just'`. Fehlt der Import, trägst du ihn ein.
 
 - `just konten JAHR` prüft die Datenbasis des Jahres: Saldo-Kette je Auszug, Jahresendsalden, Platzhalter,
   Buchungslisten, Positionssummen, Netto × (1 + MwSt.) = Brutto, die Paare unter `pruefungen`, byte-gleiche Belege

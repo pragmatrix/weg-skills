@@ -89,7 +89,7 @@ Seitenlayout bleiben so erhalten, wie der Mieter sie kennt. Ein Nachbau des Layo
 der Zellvergleich gleich aussieht.
 
 Die Rezepte liegen in `nebenkosten.just` neben dieser Datei. Die `justfile` des Projekts bindet sie ein mit
-`import '~/.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'`.
+`import '.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'`.
 
 - `just nebenkosten JAHR [VORLAGE]` baut die Abrechnung. Ohne Vorlage nimmt es die `*Nebenkostenabrechnung*.xlsx` in
   `Vermietung/<JAHR-1>/`. Liegt dort nur eine `.xls`, bricht es ab. Der Nutzer konvertiert sie dann einmal in Excel

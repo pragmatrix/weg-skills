@@ -1,5 +1,5 @@
 # Rezepte des Skills weg-eigentuemer-ablage. Die justfile des Projekts bindet sie ein mit
-#   import '~/.claude/skills/weg-eigentuemer-ablage/scripts/ablage.just'
+#   import '.claude/skills/weg-eigentuemer-ablage/scripts/ablage.just'
 # Sie laufen im Projektordner und rufen die Skripte neben dieser Datei auf.
 
 # Text aus PDFs als Markdown neben das PDF legen (nur fehlende/veraltete)

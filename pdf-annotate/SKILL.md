@@ -16,7 +16,7 @@ audit report with one mark per passage. The layout and keys of the mark list are
 has mark lists (`*_Markierungen.toml`), take one as a template, for a comparison one with `previous`.
 
 The script is called with `just annotate`. The project's `justfile` imports the recipe with
-`import '~/.claude/skills/pdf-annotate/annotate.just'`. When the import is missing, add it. The skill
+`import '.claude/skills/pdf-annotate/annotate.just'`. When the import is missing, add it. The skill
 `weg-eigentuemer-ablage` sets up a new project (section Neues Projekt einrichten). This skill needs `uv`, `mutool`, and
 `magick`, as well as the skills `weg-eigentuemer-ablage` (text MDs, plain text without links) and
 `weg-abrechnung-pruefen` (`just vergleich`), installed in the same folder as this skill.

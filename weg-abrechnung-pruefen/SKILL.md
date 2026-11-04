@@ -93,6 +93,6 @@ Vergleichszahlen. Findest du eine neue Eigenheit, trägst du sie dort ein.
 ## Werkzeuge
 
 Die Rezepte dieses Skills liegen in `pruefen.just` neben dieser Datei. Die `justfile` des Projekts bindet sie ein
-mit `import '~/.claude/skills/weg-abrechnung-pruefen/pruefen.just'`, dazu die Rezepte des Skills
+mit `import '.claude/skills/weg-abrechnung-pruefen/pruefen.just'`, dazu die Rezepte des Skills
 `weg-eigentuemer-ablage`. Fehlt der Import, trägst du ihn ein. Ein neues Projekt richtet
 der Skill `weg-eigentuemer-ablage` ein (Abschnitt Neues Projekt einrichten).

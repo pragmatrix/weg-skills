@@ -26,10 +26,10 @@ Wurzelverzeichnis des Git-Repositorys, in dem der aktuelle Ordner liegt. Aufgeru
 `justfile` des Projekts bindet die Rezepte ein:
 
 ```
-import '~/.claude/skills/weg-eigentuemer-ablage/scripts/ablage.just'
+import '.claude/skills/weg-eigentuemer-ablage/scripts/ablage.just'
 ```
 
-Liegen die Skills woanders als in `~/.claude/skills`, nennt der Import diesen Ort. `just --list` zeigt die Rezepte
+Die WEG-Skills sind je Projekt unter `.claude/skills` installiert. Das Skript `install.sh` im Repository der Skills legt dort die Links an. `just --list` zeigt die Rezepte
 mit Beschreibung. Ein neues Projekt richtest du nach dem Abschnitt Neues Projekt einrichten ein. Fehlt in einem
 bestehenden Projekt nur der Import, trägst du ihn ein. Die Skripte brauchen `python3`, Git und Poppler
 (`pdftotext`, `pdfinfo`, `pdftoppm`), für Scans ohne Textebene auch Tesseract.
@@ -170,6 +170,9 @@ Gilt für einen Projektordner, der noch nicht nach diesem Skill aufgebaut ist, e
 Ordner mit losen PDFs. Vor `git init` und vor dem Anlegen von Dateien in einem Ordner mit Inhalt fragst du den
 Nutzer. Vorhandene Dokumente legst du danach einzeln ab (siehe Neues Dokument ablegen).
 
+Sind die WEG-Skills im Projekt noch nicht installiert, ruft der Nutzer zuerst `install.sh PROJEKTORDNER` aus dem
+Repository der Skills auf. Es verlinkt die Skills nach `.claude/skills/` und trägt die Links in die `.gitignore` ein.
+
 1. **Git:** Ist der Ordner kein Git-Repository, `git init`. Die `.gitignore` nennt `/tmp/` und `__pycache__/`.
 2. **Ordner:** `Abrechnungen/`, `Versammlungen/`, `Verwaltung/` und `Stammdaten/` mit je einer `README.md`
    (Überschrift und ein Satz zum Inhalt), dazu `Vorgänge/Vorgänge.md` mit den Abschnitten „Laufend“ und „Archiv“
@@ -184,12 +187,12 @@ Nutzer. Vorhandene Dokumente legst du danach einzeln ab (siehe Neues Dokument ab
 4. **`justfile`:** Ein Import je installiertem WEG-Skill:
 
    ```
-   import '~/.claude/skills/weg-eigentuemer-ablage/scripts/ablage.just'
-   import '~/.claude/skills/weg-abrechnung-pruefen/pruefen.just'
-   import '~/.claude/skills/pdf-annotate/annotate.just'
-   import '~/.claude/skills/etg24-portal/etg24.just'
-   import '~/.claude/skills/weg-konten-belege/konten.just'
-   import '~/.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'
+   import '.claude/skills/weg-eigentuemer-ablage/scripts/ablage.just'
+   import '.claude/skills/weg-abrechnung-pruefen/pruefen.just'
+   import '.claude/skills/pdf-annotate/annotate.just'
+   import '.claude/skills/etg24-portal/etg24.just'
+   import '.claude/skills/weg-konten-belege/konten.just'
+   import '.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'
    ```
 
 5. **pre-commit-Hook:** `scripts/hooks/pre-commit` mit diesem Inhalt, ausführbar, dann
@@ -199,7 +202,7 @@ Nutzer. Vorhandene Dokumente legst du danach einzeln ab (siehe Neues Dokument ab
    #!/bin/sh
    # Prüft vor jedem Commit den Arbeitsordner: Text-MDs aktuell, jedes Linkziel vorhanden, Fundstellen passend.
    cd "$(git rev-parse --show-toplevel)" || exit 1
-   S="$HOME/.claude/skills/weg-eigentuemer-ablage/scripts"
+   S=".claude/skills/weg-eigentuemer-ablage/scripts"
    python3 "$S/pdf2md.py" --check --quiet && python3 "$S/check_links.py"
    ```
 
@@ -208,7 +211,7 @@ Nutzer. Vorhandene Dokumente legst du danach einzeln ab (siehe Neues Dokument ab
 
    ```json
    {"hooks": {"SessionStart": [{"hooks": [{"type": "command", "timeout": 600,
-     "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 \"$HOME/.claude/skills/weg-eigentuemer-ablage/scripts/pdf2md.py\" --prune --quiet"}]}]}}
+     "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 .claude/skills/weg-eigentuemer-ablage/scripts/pdf2md.py --prune --quiet"}]}]}}
    ```
 
 7. **Prüfen:** `just md`, dann `just qa`. Fertig ist die Einrichtung, wenn `just qa` nichts meldet.

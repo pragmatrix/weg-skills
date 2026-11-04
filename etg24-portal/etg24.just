@@ -1,5 +1,5 @@
 # Rezepte des Skills etg24-portal. Die justfile des Projekts bindet sie ein mit
-#   import '~/.claude/skills/etg24-portal/etg24.just'
+#   import '.claude/skills/etg24-portal/etg24.just'
 
 # Direktlink ins ETG24-Portal zu einer Datei der Ablage ausgeben (aus der Spalte Portal der Abgleichliste)
 [positional-arguments]

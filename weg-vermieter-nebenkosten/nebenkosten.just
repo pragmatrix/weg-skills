@@ -1,5 +1,5 @@
 # Rezepte des Skills weg-vermieter-nebenkosten. Die justfile des Projekts bindet sie ein mit
-#   import '~/.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'
+#   import '.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'
 # Sie laufen im Projektordner. Die Skripte brauchen openpyxl. PYTHON nennt das Python eines venv, das es hat.
 
 nk_python := env("PYTHON", "python3")
