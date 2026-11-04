@@ -3,59 +3,80 @@
 
 Aufruf (im Projektordner, siehe `projekt.py`):
     python3 pdf2md.py            fehlende und veraltete MDs erzeugen
-    python3 pdf2md.py --check    nur melden, Exit-Code 1 wenn etwas fehlt
+    python3 pdf2md.py --check    nur melden, Exit-Code 1 wenn eine MD fehlt, veraltet oder verwaist ist
     python3 pdf2md.py --prune    zusätzlich verwaiste MDs löschen (PDF umbenannt/gelöscht)
     python3 pdf2md.py --force    alle generierten MDs neu erzeugen
+    python3 pdf2md.py --quiet    nur Änderungen ausgeben, kombinierbar mit den anderen Optionen
 
-`X.pdf` ergibt `X.md` im selben Ordner. Ausgenommen sind PDFs, die auf ein Muster in
-`scripts/pdf2md-ignore.txt` passen; deren MDs gelten als verwaist und werden mit --prune gelöscht. Erzeugte Dateien tragen in der ersten Zeile eine Markierung und werden
-nur dann überschrieben; von Hand angelegte MDs gleichen Namens bleiben unberührt. Eine MD gilt als veraltet, wenn
-das PDF neuer ist.
+`X.pdf` ergibt `X.md` im selben Ordner. Die Endung `.pdf` zählt in jeder Schreibweise, auch `.PDF`. Ausgenommen sind
+die Ordner außerhalb der Ablage (`projekt.skipped`) und PDFs, die auf ein Muster in `scripts/pdf2md-ignore.txt`
+passen. Die MDs ausgenommener PDFs gelten als verwaist und werden mit --prune gelöscht.
 
-Benötigt Poppler (`pdftotext`, `pdfinfo`, `pdftoppm`). Für Scans ohne Textebene wird, falls vorhanden, Tesseract
-für OCR verwendet (bevorzugt Sprache `deu`, sonst `eng`).
+Erzeugte Dateien tragen in der ersten Zeile eine Markierung. Nur sie werden überschrieben. Von Hand angelegte MDs
+gleichen Namens bleiben unberührt. Die Markierung nennt den SHA-256-Hash des PDFs, aus dem die MD erzeugt wurde. Eine
+MD gilt als veraltet, wenn dieser Hash nicht zum PDF passt oder fehlt. Dateizeiten zählen nicht, weil `git clone` und
+`git worktree add` sie neu setzen.
+
+Benötigt Poppler (`pdftotext`, `pdfinfo`, `pdftoppm`). Fehlt Poppler, bricht das Skript mit Exit-Code 1 ab. Ein PDF,
+dessen Seitenzahl `pdfinfo` nicht lesen kann, bekommt keine MD und wird als Fehler gemeldet. Für Scans ohne Textebene
+wird, falls vorhanden, Tesseract für OCR verwendet (bevorzugt Sprache `deu`, sonst `eng`).
 """
 from pathlib import Path
 import argparse
 import fnmatch
+import hashlib
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 
-from projekt import ROOT
+from projekt import ROOT, ignore_patterns, nfc, skipped
 
-# Die Markierung nennt den früheren Ort dieses Skripts. Sie bleibt so, weil jede erzeugte MD sie in Zeile 1 trägt.
+# Jede erzeugte MD beginnt in Zeile 1 mit `MARKER`. Der Anfang nennt den früheren Ort dieses Skripts und bleibt so,
+# damit auch ältere MDs als erzeugt erkannt werden. Hinter ihm steht der Hash des PDFs in der Form `sha256=<hex>`.
 MARKER = "<!-- generiert von scripts/pdf2md.py"
-SKIP_DIRS = {"tmp", "scripts", ".claude", ".git"}
+HASH = re.compile(r"\bsha256=([0-9a-f]{64})\b")
 MIN_CHARS_PER_PAGE = 20  # darunter gilt eine Seite als Scan ohne Textebene
-IGNORE_FILE = ROOT / "scripts" / "pdf2md-ignore.txt"
 MAX_OCR_PAGES = 10  # längere Scans (z. B. handschriftliche Statik) nicht per OCR lesen
 
 
-def ignore_patterns():
-    if not IGNORE_FILE.exists():
-        return []
-    lines = (l.strip() for l in IGNORE_FILE.read_text(encoding="utf-8").splitlines())
-    return [l for l in lines if l and not l.startswith("#")]
-
-
 def pdfs(patterns):
-    for p in sorted(ROOT.rglob("*.pdf")):
+    for p in sorted(ROOT.rglob("*.[pP][dD][fF]")):
         rel = p.relative_to(ROOT)
-        if any(part in SKIP_DIRS or part.startswith(".") for part in rel.parts[:-1]):
-            continue
-        if any(fnmatch.fnmatch(rel.as_posix(), pat) for pat in patterns):
+        if skipped(rel) or any(fnmatch.fnmatch(nfc(rel.as_posix()), pat) for pat in patterns):
             continue
         yield p
 
 
-def is_generated(md):
+def marker(md):
+    """Erste Zeile einer erzeugten MD, oder None für eine von Hand angelegte oder unlesbare Datei."""
     try:
         with md.open(encoding="utf-8") as f:
-            return f.readline().startswith(MARKER)
-    except OSError:
-        return False
+            line = f.readline()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return line if line.startswith(MARKER) else None
+
+
+def is_generated(md):
+    return marker(md) is not None
+
+
+def pdf_hash(pdf):
+    with pdf.open("rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()
+
+
+def state(md, digest):
+    """Zustand der MD zum PDF mit dem Hash `digest`: "fehlt", "veraltet", "aktuell" oder "von Hand"."""
+    if not md.exists():
+        return "fehlt"
+    line = marker(md)
+    if line is None:
+        return "von Hand"
+    m = HASH.search(line)
+    return "aktuell" if m and m.group(1) == digest else "veraltet"
 
 
 def run(*args):
@@ -87,10 +108,9 @@ def ocr_page(pdf, n, lang):
         return run("tesseract", str(img), "-", "-l", lang, "--psm", "3")
 
 
-def convert(pdf, lang):
-    pages = page_count(pdf)
+def convert(pdf, digest, pages, lang):
     rel = pdf.relative_to(ROOT).as_posix()
-    out = [f"{MARKER} aus {pdf.name}; nicht von Hand bearbeiten, neu erzeugen mit `just md` -->",
+    out = [f"{MARKER} aus {pdf.name} (sha256={digest}); nicht von Hand bearbeiten, neu erzeugen mit `just md` -->",
            "", f"# {pdf.stem}", "", f"Quelle: `{rel}`, {pages} Seite(n).", ""]
     notes = set()
     ocr_left = MAX_OCR_PAGES
@@ -123,36 +143,44 @@ def main():
     ap.add_argument("--quiet", action="store_true", help="nur Änderungen ausgeben")
     a = ap.parse_args()
 
-    if not shutil.which("pdftotext"):
-        print("pdf2md: pdftotext fehlt (brew install poppler) – übersprungen", file=sys.stderr)
-        return 0
+    missing = [tool for tool in ("pdftotext", "pdfinfo") if not shutil.which(tool)]
+    if missing:
+        print(f"pdf2md: Poppler fehlt, es gibt kein {' und '.join(missing)} (brew install poppler)", file=sys.stderr)
+        return 1
     lang = ocr_lang()
-    todo, skipped = [], []
-    wanted = set(pdfs(ignore_patterns()))
-    for pdf in sorted(wanted):
-        md = pdf.with_suffix(".md")
-        if md.exists() and not is_generated(md):
-            skipped.append(md)
-        elif a.force or not md.exists() or md.stat().st_mtime < pdf.stat().st_mtime:
-            todo.append((pdf, md))
+    todo, manual, unreadable = [], [], []
+    wanted = {pdf.with_suffix(".md"): pdf for pdf in pdfs(ignore_patterns("pdf2md-ignore.txt"))}
+    for md, pdf in sorted(wanted.items()):
+        digest = pdf_hash(pdf)
+        status = state(md, digest)
+        if status == "von Hand":
+            manual.append(md)
+        elif a.force or status != "aktuell":
+            todo.append((pdf, md, digest, status))
 
-    # verwaist: PDF gelöscht/umbenannt oder per pdf2md-ignore.txt ausgeschlossen
-    orphans = [md for md in ROOT.rglob("*.md") if is_generated(md) and md.with_suffix(".pdf") not in wanted]
+    # Eine erzeugte MD ist verwaist, wenn ihr PDF gelöscht, umbenannt oder per pdf2md-ignore.txt ausgenommen ist.
+    orphans = [md for md in ROOT.rglob("*.md")
+               if not skipped(md.relative_to(ROOT)) and is_generated(md) and md not in wanted]
 
-    for pdf, md in todo:
-        print(f"{'fehlt' if a.check else 'erzeugt'}: {md.relative_to(ROOT)}")
-        if not a.check:
-            md.write_text(convert(pdf, lang), encoding="utf-8")
+    for pdf, md, digest, status in todo:
+        if a.check:
+            print(f"{status}: {md.relative_to(ROOT)}")
+        elif pages := page_count(pdf):
+            md.write_text(convert(pdf, digest, pages, lang), encoding="utf-8")
+            print(f"erzeugt: {md.relative_to(ROOT)}")
+        else:
+            unreadable.append(pdf)
+            print(f"nicht lesbar (pdfinfo nennt keine Seiten): {pdf.relative_to(ROOT)}", file=sys.stderr)
     for md in orphans:
         print(f"{'gelöscht' if a.prune and not a.check else 'verwaist'}: {md.relative_to(ROOT)}")
         if a.prune and not a.check:
             md.unlink()
     if not a.quiet:
-        for md in skipped:
+        for md in manual:
             print(f"übersprungen (nicht generiert): {md.relative_to(ROOT)}")
         if not todo and not orphans:
             print("pdf2md: alles aktuell")
-    return 1 if a.check and (todo or orphans) else 0
+    return 1 if unreadable or (a.check and (todo or orphans)) else 0
 
 
 if __name__ == "__main__":

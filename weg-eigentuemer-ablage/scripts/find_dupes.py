@@ -9,40 +9,38 @@ Die zweite Form ist für neue Dateien vor dem Ablegen gedacht, etwa Downloads au
 außerhalb des Projektordners liegen. Sie meldet nur und endet immer mit Exit-Code 0.
 
 Verglichen werden alle Dateien außer Markdown. Text-MDs sind aus ihrem PDF erzeugt und wären sonst doppelt gemeldet.
-Ausgenommen sind die Ordner `tmp/`, `Notizen/`, `.git/` und `.claude/` sowie Dateien, die auf ein Muster in
-`scripts/dupes-ignore.txt` passen. Dort stehen gewollte Kopien, etwa die Anlagen eines Anschreibens.
+Leere Dateien zählen nicht, weil sie alle denselben Inhalt haben, etwa zwei `.gitkeep`. Ausgenommen sind außerdem
+die Ordner außerhalb der Ablage und Dateien, die auf ein Muster in `scripts/dupes-ignore.txt` passen. Außerhalb der
+Ablage liegen die Ordner `tmp/`, `Notizen/` und `scripts/` direkt im Projektordner und jeder versteckte Ordner wie
+`.git/` oder `.obsidian/` (`projekt.skipped`). In `dupes-ignore.txt` stehen gewollte Kopien, etwa die Anlagen eines
+Anschreibens.
 """
 from pathlib import Path
 import argparse
 import fnmatch
 import hashlib
 import sys
-import unicodedata
 
-from projekt import ROOT
+import projekt
+from projekt import ROOT, nfc, skipped
 
-SKIP_DIRS = {"tmp", "Notizen", ".git", ".claude", "__pycache__"}
 SKIP_NAMES = {".DS_Store"}
-IGNORE_FILE = ROOT / "scripts" / "dupes-ignore.txt"
 
 
 def ignore_patterns():
-    if not IGNORE_FILE.exists():
-        return []
-    lines = (l.strip() for l in IGNORE_FILE.read_text(encoding="utf-8").splitlines())
-    return [unicodedata.normalize("NFC", l) for l in lines if l and not l.startswith("#")]
+    """Muster der gewollten Kopien aus `scripts/dupes-ignore.txt`."""
+    return projekt.ignore_patterns("dupes-ignore.txt")
 
 
 def files(patterns):
-    """Alle Dateien der Ablage, die verglichen werden, als Pfade relativ zum Projektordner."""
+    """Alle nicht leeren Dateien der Ablage, die verglichen werden, als Pfade relativ zum Projektordner."""
     for path in ROOT.rglob("*"):
         rel = path.relative_to(ROOT)
-        if rel.parts[0] in SKIP_DIRS or path.name in SKIP_NAMES or path.suffix.lower() == ".md":
+        if skipped(rel) or path.name in SKIP_NAMES or path.suffix.lower() == ".md":
             continue
-        if path.is_symlink() or not path.is_file():
+        if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
             continue
-        name = unicodedata.normalize("NFC", rel.as_posix())
-        if any(fnmatch.fnmatch(name, pat) for pat in patterns):
+        if any(fnmatch.fnmatch(nfc(rel.as_posix()), pat) for pat in patterns):
             continue
         yield rel
 

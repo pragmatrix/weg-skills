@@ -15,7 +15,9 @@ Daten). Was dort steht, geht diesem Skill vor.
 ## Grundregeln
 
 - Jedes neue Dokument belegt seine Fakten mit Quellenlinks (siehe Abschnitt Quellenlinks).
-- Nach jedem neuen oder geänderten Dokument die `README.md` seines Hauptordners nachziehen.
+- Nach jedem neuen oder geänderten Dokument seine Übersicht nachziehen. Für ein Dokument eines Vorgangs sind das
+  dessen `NOTIZEN.md` und seine Zeile in `Vorgänge/Vorgänge.md` (siehe Abschnitt Vorgänge). Für jedes andere
+  Dokument ist es die `README.md` seines Hauptordners.
 - Kommt eine Übersicht hinzu, entfällt eine oder ändert sich ihr Pfad, die `README.md` im Wurzelordner nachziehen.
   Dort auch jede neue Einladung, jedes Protokoll und jede Beschluss-Sammlung unter ihrem Jahr eintragen.
 
@@ -56,6 +58,8 @@ Verwaltung/        ein Unterordner je Verwaltung (Name/): Verträge, Schriftverk
 Stammdaten/        Teilungserklärung (+ Nachträge), Datenblätter, Eigentümerliste, Vollmachten/
 Vorgänge/          Vorgänge.md (einzige Übersicht), ein Ordner je größerem Vorgang (ART JJJJMM Kurzname/),
                    Archiv/ für abgeschlossene Vorgänge (siehe Abschnitt Vorgänge)
+Notizen/           eigene Beobachtungen, auf die Quellenlinks verweisen. Darf ein Link auf einen Ordner außerhalb
+                   des Projekts sein. Die Prüfskripte lassen ihn aus
 Vermietung/        nur bei vermieteter Einheit: Mietvertrag/, ein Ordner je Abrechnungsjahr (JJJJ/) mit der
                    Nebenkostenabrechnung für den Mieter (Skill weg-vermieter-nebenkosten), Schriftverkehr mit dem Mieter
 scripts/           eigene Skripte, die Ausarbeitungen erzeugen (Pfade relativ zum Projektordner), die
@@ -88,6 +92,8 @@ Handwerkern und Versorgern bleiben im Portal.
   Zeile 1, nie von Hand bearbeiten). Handschriftliche Scans, Pläne, erzeugte PDFs, Kopien und Formulare bekommen
   keine; Muster dafür in `scripts/pdf2md-ignore.txt` pflegen.
   Nach jedem Umbenennen oder Verschieben von PDFs `just md-prune` ausführen, damit keine verwaisten MDs bleiben.
+  Die Markierung nennt den Hash des PDFs. Passt er nicht oder fehlt er, meldet `just md-check` die MD als veraltet,
+  und `just md` erzeugt sie neu. Ältere MDs ohne Hash schreibt `just md` deshalb einmal neu.
   Eigene Ausarbeitungen nie so benennen wie ein PDF.
 
 ## Quellenlinks
@@ -108,8 +114,9 @@ im Text.
   Vorgänge.
 - Der Tooltip (Titel in Anführungszeichen) nennt das Dokument ausgeschrieben, Seite und Position und jeden Hinweis,
   etwa dass eine Quelle eine Aussage nur zum Teil stützt.
-- Die Seite zählt wie unter „Belege“ im Skill `weg-abrechnung-pruefen`. Der Link zeigt auf die Datei, die Seite steht im
-  Linktext.
+- Gezählt wird die Seite der PDF-Datei. Eine eigene Seitenzählung des Dokuments, etwa die Fußzeile „Seite N“, kann
+  davon abweichen, zum Beispiel weil ein Anschreiben nicht mitzählt. Der Link zeigt auf die Datei, die Seite steht
+  im Linktext.
 - Eine abgeleitete Zahl verlinkt den Abschnitt des Prüfberichts, der sie herleitet. Eine eigene Rechnung steht als
   Klammertext „(eigene Rechnung: …)“. Eine eigene Beobachtung verlinkt die Notiz in `Notizen/`.
 - Gesetzesstellen und Aussagen, die schon auf ihre Quelle verlinken, kommen ohne Quellenlink aus.
@@ -120,11 +127,13 @@ im Text.
 - Werden Quellenlinks in ein bestehendes Dokument nachgetragen, bleibt der Wortlaut gleich. `just wortdiff DATEI`
   meldet jedes Wort, das gegenüber Git weggefallen ist.
 
-Fertig ist ein Dokument, wenn jeder Fakt einen Quellenlink hat und `just qa` keine Meldung mehr zeigt. Es meldet
-fehlende Linkziele, Quellenlinks, deren Seite oder Zitat nicht zum PDF passt, und Verweise auf nummerierte Punkte
-wie „Prüfpunkt 1.4b“, die es im Ziel nicht gibt. Dazu nennt es Beträge, Prozente und Daten ohne Quellenlink in neuen
-und geänderten Blöcken (`just unbelegt`, alte Lücken mit `--alle`). Jede solche Meldung bekommt einen Quellenlink
-oder wird dem Nutzer als unbelegt genannt.
+`just qa` meldet fehlende Linkziele, Quellenlinks, deren Seite oder Zitat nicht zum PDF passt, und Verweise auf
+nummerierte Punkte wie „Prüfpunkt 1.4b“, die es im Ziel nicht gibt. Dazu nennt es Beträge, Prozente und Daten ohne
+Quellenlink in neuen und geänderten Blöcken (`just unbelegt`, alte Lücken mit `--alle`). Diese Hinweise ändern den
+Exit-Code nicht.
+
+Fertig ist ein Dokument, wenn `just qa` mit Exit-Code 0 endet und jeder Block, den `just unbelegt` nennt, einen
+Quellenlink hat oder dem Nutzer als unbelegt genannt ist.
 
 ## Gliederung und Gewichtung
 
@@ -214,7 +223,7 @@ Repository der Skills auf. Es verlinkt die Skills nach `.claude/skills/` und tr�
      "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 .claude/skills/weg-eigentuemer-ablage/scripts/pdf2md.py --prune --quiet"}]}]}}
    ```
 
-7. **Prüfen:** `just md`, dann `just qa`. Fertig ist die Einrichtung, wenn `just qa` nichts meldet.
+7. **Prüfen:** `just md`, dann `just qa`. Fertig ist die Einrichtung, wenn `just qa` mit Exit-Code 0 endet.
 
 ### Neues Dokument ablegen
 
@@ -225,8 +234,11 @@ Repository der Skills auf. Es verlinkt die Skills nach `.claude/skills/` und tr�
 4. Ablegen und eine Zeile eintragen (Pfad, was es ist, wichtigste Zahl oder Frist). Gehört das Dokument zu einem
    Vorgang, kommt die Zeile in dessen `NOTIZEN.md` unter „Dokumente“, sonst in die `README.md` des Hauptordners
    als relativer Link.
-4a. Text-MD erzeugen: `just md-prune`. Danach liegt `X.md` neben `X.pdf`; bei OCR-Scans die Qualität kurz prüfen.
-5. Fristen und Handlungsbedarf aus dem Dokument dem Nutzer nennen (siehe Fristen unten).
+5. Text-MD erzeugen: `just md-prune`. Danach liegt `X.md` neben `X.pdf`. Bei OCR-Scans die Qualität kurz prüfen.
+6. Fristen und Handlungsbedarf aus dem Dokument dem Nutzer nennen (siehe Fristen im Blick).
+
+Fertig ist das Ablegen, wenn `just dup` für die neue Datei keine Dublette mehr nennt, ihre Zeile in der Übersicht
+steht, `just qa` mit Exit-Code 0 endet und der Nutzer jede Frist aus dem Dokument mit Datum kennt.
 
 ### Jahresabrechnung, Wirtschaftsplan, Beschlüsse oder Vertrag prüfen
 
@@ -239,8 +251,8 @@ Nebenkostenabrechnung für den Mieter einer vermieteten Einheit erstellt der Ski
 
 ### Eigentümerversammlung vorbereiten
 
-1. Einladung ablegen (`Versammlungen/JJJJMMTT Einladung Versammlung.pdf`). Einberufungsfrist prüfen: mindestens drei
-   Wochen (§ 24 Abs. 4 WEG).
+1. Einladung ablegen (`Versammlungen/JJJJMMTT Einladung Versammlung.pdf`). Einberufungsfrist prüfen (siehe Fristen
+   im Blick).
 2. Jeden Tagesordnungspunkt mit Unterlagen verknüpfen (Abrechnung, Wirtschaftsplan, Angebote, Verträge) und die
    Möglichkeiten mit ihren Folgen nennen: Zustimmung, Ablehnung, Nachfrage. Die Vorbereitung liegt in
    `Versammlungen/JJJJMMTT Versammlung/`, mit einer `README.md` als Übersicht und einem eigenen Dokument je TOP mit
@@ -258,11 +270,19 @@ Nebenkostenabrechnung für den Mieter einer vermieteten Einheit erstellt der Ski
    veraltet, sobald der Prüfbericht sich ändert.
 3. Eigene Anträge rechtzeitig vor der Einladung bei der Verwaltung einreichen, damit sie auf die Tagesordnung kommen.
 4. Bei Abwesenheit: Vollmacht in Textform vorbereiten (§ 25 Abs. 3 WEG), ggf. mit Weisungen je TOP.
-5. Nach der Versammlung: Protokoll und aktualisierte Beschluss-Sammlung ablegen und gegen eigene Notizen prüfen.
-   Jeden Beschluss, der etwas umsetzt, als Vorgang aufnehmen oder beim bestehenden Vorgang nachtragen.
-6. Anfechtung prüfen, falls ein Beschluss fehlerhaft erscheint: Klage binnen eines Monats nach Beschlussfassung,
-   Begründung binnen zwei Monaten (§ 45 WEG). Frist dem Nutzer sofort nennen; rechtliche Bewertung einem Anwalt
-   überlassen.
+
+Fertig ist die Vorbereitung, wenn jeder TOP der Einladung einen Abschnitt in der `README.md` der Vorbereitung hat,
+jeder TOP mit Unterlagen verknüpft ist und `just qa` mit Exit-Code 0 endet.
+
+Nach der Versammlung:
+
+5. Protokoll und aktualisierte Beschluss-Sammlung ablegen und gegen eigene Notizen prüfen. Jeden Beschluss, der
+   etwas umsetzt, als Vorgang aufnehmen oder beim bestehenden Vorgang nachtragen.
+6. Anfechtung prüfen, falls ein Beschluss fehlerhaft erscheint. Die Fristen für Klage und Begründung stehen unter
+   Fristen im Blick. Die Frist dem Nutzer sofort mit Datum nennen. Die rechtliche Bewertung bleibt einem Anwalt.
+
+Fertig ist die Nachbereitung, wenn Protokoll und Beschluss-Sammlung abgelegt sind, jeder umsetzende Beschluss eine
+Zeile in `Vorgänge/Vorgänge.md` hat und der Nutzer jede Anfechtungsfrist mit Datum kennt.
 
 ### Antrag an die Gemeinschaft stellen
 
@@ -272,8 +292,11 @@ beschlussfähig), **Begründung**, Anlagen.
 
 - Bauliche Veränderungen: Gestattung nach § 20 Abs. 1 WEG, Kosten und Folgekosten beim Antragsteller (§ 21 Abs. 1 WEG),
   Bedingungen (Fachbetrieb, Abnahme, Haftung, Genehmigungen, Termine) ausformulieren.
-- Ablage als Markdown-Entwurf im Vorgang (`Vorgänge/<Vorgang>/Antrag/`), Platzhalter `[…]`
-  kennzeichnen; die versandte Fassung als `JJJJMMTT Antrag ….pdf` ablegen.
+- Ablage als Markdown-Entwurf im Vorgang (`Vorgänge/<Vorgang>/Antrag/`). Fehlende Angaben stehen als Platzhalter
+  `[…]` darin. Die versandte Fassung wird als `JJJJMMTT Antrag ….pdf` abgelegt.
+
+Fertig ist der Entwurf, wenn jeder Teil der Vorlage ausgefüllt ist, jeder verbliebene Platzhalter dem Nutzer genannt
+ist und der Text seine Quellen als Text nennt (siehe Quellenlinks).
 
 ### Schriftverkehr mit der Verwaltung
 
@@ -306,7 +329,7 @@ enthält die offenen Vorgänge, der Abschnitt „Archiv“ die abgeschlossenen m
   relativer Markdown-Link, z. B. `[Abrechnung 2025](<../../Abrechnungen/2025/Datei.pdf>)` oder
   `[WEG 202211 Wasserschaden](<../WEG 202211 Wasserschaden/NOTIZEN.md>)`. Der Pfad ist relativ zur Datei mit dem Link
   und steht in spitzen Klammern, weil Namen Leerzeichen enthalten. So sind die Links in VS Code, Obsidian und auf
-  GitHub klickbar. Befehle (`just pdf`) und Platzhalter (`[…]`) bleiben in Backticks. Fertig ist ein Eintrag, wenn
+  GitHub klickbar. Befehle (`just md`) und Platzhalter (`[…]`) bleiben in Backticks. Fertig ist ein Eintrag, wenn
   jedes Linkziel existiert.
 - **Schadensfall:** Schadensmeldung, Gutachten, Zahlungen der Versicherung und Rechnungen liegen im Vorgang.
   Schadennummer, Versicherer und gezahlte Beträge stehen in der `NOTIZEN.md`. Beim Prüfen der Jahresabrechnung

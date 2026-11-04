@@ -13,9 +13,10 @@ nur an anderer Stelle bearbeitet wurde. `--alle` meldet jeden Block ohne Beleg, 
 
 Das Skript sucht nach Fakten, die es an ihrer Form erkennt: Beträge in Euro oder Cent, Prozentwerte und Daten wie
 22.05.2023. Ein Block mit einem solchen Fakt gilt als belegt, wenn er einen Link oder eine „eigene Rechnung“ enthält.
-Ein Block ist ein Absatz, ein Listenpunkt oder eine Tabellenzeile. Eine Tabelle gilt als belegt, wenn der
-Absatz direkt davor oder ihre Kopfzeile einen Link hat. Überschriften, Zitate (`>`, etwa Sprechzettel),
-Codeblöcke, die Kopfzeile „Stand:“ und erzeugte Text-MDs zählen nicht. Aussagen ohne Zahl findet das Skript nicht.
+Ein Block ist ein Absatz, ein Listenpunkt oder eine Tabellenzeile. Eine Tabelle gilt als belegt, wenn der Absatz
+direkt davor oder ihre Kopfzeile einen Link hat. Überschriften, Zitatblöcke (`>`, etwa wörtliche Zitate aus einem
+Dokument), Codeblöcke, die Kopfzeile „Stand:“ und erzeugte Text-MDs zählen nicht. Aussagen ohne Zahl findet das
+Skript nicht.
 
 Das Ergebnis ist nur ein Hinweis, der Exit-Code ist immer 0. Ob ein Block wirklich einen Beleg braucht, entscheidet
 der Mensch, etwa bei einer Frist, die sich aus dem Gesetz ergibt.
@@ -25,7 +26,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from check_links import FENCE, MARKER, ROOT, SKIP_DIRS, blank
+from check_links import FENCE, MARKER, ROOT, blank
+from projekt import skipped
 
 FACT = re.compile(r"\d[\d.]*(?:,\d+)?\s?(?:€|EUR|Euro|ct/kWh|%)|\b\d{1,2}\.\d{1,2}\.\d{4}\b")
 CITED = re.compile(r"\]\(|eigene Rechnung", re.I)
@@ -75,7 +77,7 @@ def changed_files():
             continue
         status, name = e[:2], e[3:]
         head_rel = next(entries) if status[0] in "RC" else name
-        if "D" not in status and name.endswith(".md") and name.split("/")[0] not in SKIP_DIRS:
+        if "D" not in status and name.endswith(".md") and not skipped(Path(name)):
             files.append((ROOT / name, head_rel))
     return files
 

@@ -8,7 +8,8 @@ Verglichen wird nur der Lesetext aus `mdtext.py`, also ohne Linkziele und Toolti
 zählen einzeln. Dadurch fällt nicht auf, wenn ein Quellenlink vor ein Satzzeichen gesetzt wird. Neue Wörter, etwa der
 Linktext eines Quellenlinks, werden nicht gemeldet. Gemeldet wird jede Stelle, an der alter Text fehlt, mit
 Zeilennummer im alten Stand. Das prüft nach dem Nachtragen von Quellenlinks, dass der Wortlaut gleich geblieben ist.
-Exit-Code 1, wenn Text weggefallen ist.
+Exit-Code 1, wenn Text weggefallen ist. Exit-Code 2, wenn es die Datei in REVISION nicht gibt oder REVISION
+unbekannt ist.
 """
 import difflib
 import re
@@ -36,9 +37,11 @@ def main():
     path = Path(sys.argv[1]).resolve()
     rev = sys.argv[2] if len(sys.argv) == 3 else "HEAD"
     rel = path.relative_to(ROOT).as_posix()
-    old_text = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, check=True,
-                              text=True).stdout
-    old, new = tokens(old_text), tokens(path.read_text(encoding="utf-8"))
+    old_text = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, text=True)
+    if old_text.returncode != 0:
+        print(f"wortdiff: {rel} gibt es in {rev} nicht: {old_text.stderr.strip()}", file=sys.stderr)
+        sys.exit(2)
+    old, new = tokens(old_text.stdout), tokens(path.read_text(encoding="utf-8"))
     matcher = difflib.SequenceMatcher(None, [t for t, _ in old], [t for t, _ in new], autojunk=False)
     removed = 0
     for op, i1, i2, _, _ in matcher.get_opcodes():
