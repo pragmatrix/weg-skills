@@ -26,7 +26,8 @@ aus der Adresszeile, wenn der Nutzer angemeldet ist.
   - `/units/<ID der Einheit>/documents`: Dokumente einer Einheit
   - `/votings`: Versammlungen und Abstimmungen
   - `/posts`: Beiträge der Verwaltung. Die Liste zeigt nur angepinnte, nicht archivierte Beiträge.
-- Die Listen laden beim Scrollen nach. `_etg.load()` scrollt bis zum Ende.
+- Die Listen laden beim Scrollen nach. `_etg.load()` scrollt etwa 8 Sekunden lang und gibt `{zeilen, fertig}`
+  zurück. Du rufst es erneut auf, bis `fertig` wahr ist. Erst dann ist die Liste vollständig.
 - Die Übersichtsseite einer Einheit zeigt Telefonnummer und E-Mail der Eigentümer. Öffne direkt `/documents`.
 - Anmelden muss sich der Nutzer selbst. Bitte ihn, das Portal im Tab der Claude-Tabgruppe zu öffnen.
 
@@ -146,23 +147,33 @@ der Skill `weg-eigentuemer-ablage` ein (Abschnitt Neues Projekt einrichten). Die
 
 1. Empfänger im Hintergrund starten, mit einem neuen, leeren Ordner im Scratchpad als Ziel:
    `just etg24-recv ZIELORDNER`. Er speichert, was die Seite schickt, und liefert den Helfer `etg24.js` aus.
+   Fertig ist der Schritt, wenn seine Ausgabe die Zeile `etg24_recv: PID …, http://127.0.0.1:8765/ → ZIELORDNER` mit
+   deinem Zielordner zeigt. Die PID merkst du dir für Schritt 9. Meldet er stattdessen „Port 8765 ist belegt“, gehört
+   der Port meist dem Empfänger einer anderen Sitzung. Dann fragst du den Nutzer, ob du ihn mit `kill PID` beenden
+   darfst, und startest danach neu.
 2. Helfer in den Portal-Tab laden, nach jedem Neuladen der Seite erneut. Starte das Laden ohne `await` und frage
    das Ergebnis mit einem Zeitlimit ab, denn ohne Berechtigung hängt der Aufruf (siehe „Zugriff auf den
    Empfänger“):
    `window.__load = fetch('http://127.0.0.1:8765/etg24.js').then((r) => r.text()).then((t) => (0, eval)(t))`.
    Fertig ist der Schritt, wenn `window.__load` „etg24 bereit“ liefert.
-3. Die Liste jedes Bereichs exportieren: `await _etg.load()` und danach
+3. Die Liste jedes Bereichs exportieren: `await _etg.load()` wiederholen, bis `fertig` wahr ist, und danach
    `await _etg.save('objekt.json', JSON.stringify(_etg.rows()))`. Der Dateiname nennt den Bereich der Abgleichliste:
-   `objekt.json` für „Objekt“, `einheit-4.json` für „Einheit 4“.
+   `objekt.json` für „Objekt“, `einheit-4.json` für „Einheit 4“. Fertig ist der Schritt, wenn für jeden Bereich im
+   Kopf der Abgleichliste ein Export in ZIELORDNER liegt.
 4. `python3 <Skill-Ordner>/etg24_abgleich.py ZIELORDNER/*.json` nennt jede Zeile, die noch nicht in der
    Abgleichliste steht, mit Kandidaten aus der Ablage gleicher Größe.
 5. Dem Nutzer die neuen Dokumente vorschlagen, gruppiert nach dem Thema, zu dem sie gehören (Versammlung, TOP,
    Vorgang). Er wählt aus. Downloads brauchen seine Zustimmung.
-6. In den Bereich des Dokuments wechseln, `await _etg.load()` aufrufen und den Download starten:
+6. In den Bereich des Dokuments wechseln, `await _etg.load()` wiederholen, bis `fertig` wahr ist, und den Download
+   starten:
    `_etg.start([[titel, nr, präfix], …])`. Den Titel schreibst du so, wie `_etg.rows()` ihn
    liefert. Bei gleichem Titel wählt `nr` das wievielte Dokument, gezählt ab 0. Dann fragst du `_etg.res` ab, bis „FERTIG“ kommt.
 7. `just dup ZIELORDNER/*` zeigt, welche Downloads schon in der Ablage liegen. Die neuen legst du nach dem Skill
-   `weg-eigentuemer-ablage` ab.
+   `weg-eigentuemer-ablage` ab. Fertig ist der Schritt, wenn jeder Download entweder schon in der Ablage lag oder
+   abgelegt ist und die Spalte „Ablage“ seiner Zeile auf die Datei verlinkt.
 8. `python3 <Skill-Ordner>/etg24_link.py fill ZIELORDNER/*.json` trägt die Direktlinks in die Spalte „Portal“ ein.
+   Fertig ist der Schritt, wenn das Skript ohne Fehler endet und jede Zeile, die es „ohne Direktlink“ zählt, zu einem
+   Dokument gehört, das in keinem Export steht.
 9. Abgeschlossen ist der Durchgang, wenn jede Zeile aus Schritt 4 in der Abgleichliste steht, mit Link oder Grund
-   und mit Direktlink, und `just qa` nichts meldet. Danach den Empfänger beenden: `pkill -f etg24_recv.py`.
+   und mit Direktlink, und `just qa` mit Exit-Code 0 endet. Danach den Empfänger beenden: `kill PID` mit der PID aus
+   Schritt 1.

@@ -27,30 +27,13 @@ import sys
 import urllib.parse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from etg24_abgleich import ABGLEICH, ROOT, full_date, section_name  # noqa: E402
+from etg24_abgleich import ABGLEICH, ROOT, full_date, section_name, table_rows, unescape  # noqa: E402
 
-CELL_SPLIT = re.compile(r"(?<!\\)\|")
 LINK = re.compile(r"\]\(<([^>]+)>")
-
-
-def cells(line):
-    return [c.strip() for c in CELL_SPLIT.split(line)[1:-1]]
 
 
 def row_line(values):
     return "| " + " | ".join(values) + " |"
-
-
-def table_rows():
-    """(Zeilennummer, Bereich, Zellen) für jede Datenzeile der Abgleichliste."""
-    section = None
-    for n, line in enumerate(ABGLEICH.read_text(encoding="utf-8").split("\n")):
-        if line.startswith("## "):
-            section = line[3:].strip()
-        elif line.startswith("|") and section:
-            c = cells(line)
-            if c and c[0] != "Kategorie" and not set(c[0]) <= {"-", ":"}:
-                yield n, section, c
 
 
 def fill(exports):
@@ -63,30 +46,27 @@ def fill(exports):
                 urls[(section, row["category"], row["title"], full_date(row["date"], exported))] = row["url"]
 
     lines = ABGLEICH.read_text(encoding="utf-8").split("\n")
-    for n, line in enumerate(lines):
-        if line.startswith("| Kategorie") and "| Portal |" not in line:
-            lines[n] = line + " Portal |"
-        elif re.fullmatch(r"\|(-+\|){5}", line):
-            lines[n] = line + "---|"
-    filled = 0
-    for n, section, c in table_rows():
-        c = cells(lines[n])
-        key = (section, c[0].replace("\\|", "|"), c[1].replace("\\|", "|"), c[2])
-        portal = f"[öffnen](<{urls[key]}>)" if key in urls else (c[5] if len(c) > 5 else "")
-        filled += key in urls
-        lines[n] = row_line(c[:5] + [portal])
+    filled = missing = 0
+    for n, section, c in list(table_rows(lines)):
+        key = (section, unescape(c[0]), unescape(c[1]), c[2])
+        if key in urls:
+            c[5] = f"[öffnen](<{urls[key]}>)"
+            filled += 1
+        missing += not c[5]
+        lines[n] = row_line(c)
     ABGLEICH.write_text("\n".join(lines), encoding="utf-8")
-    print(f"etg24_link: {filled} Direktlink(s) eingetragen")
+    print(f"etg24_link: {filled} Direktlink(s) eingetragen, {missing} Zeile(n) ohne Direktlink")
 
 
 def find(names, open_it):
     found = 0
+    rows = list(table_rows(ABGLEICH.read_text(encoding="utf-8").split("\n")))
     for name in names:
         target = os.path.normpath(Path(name).resolve().relative_to(ROOT))
-        for _, section, c in table_rows():
+        for _, section, c in rows:
             ablage = [os.path.normpath(Path(ABGLEICH.parent, urllib.parse.unquote(t)).resolve().relative_to(ROOT))
                       for t in LINK.findall(c[4])]
-            url = LINK.search(c[5]).group(1) if len(c) > 5 and LINK.search(c[5]) else None
+            url = LINK.search(c[5]).group(1) if LINK.search(c[5]) else None
             if target in ablage and url:
                 found += 1
                 print(f"{name}: {url}  ({section}, {c[1]}, {c[2]})")

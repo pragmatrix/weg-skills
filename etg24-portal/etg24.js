@@ -1,6 +1,6 @@
-// Helfer für das ETG24-Portal. Den ganzen Text mit javascript_tool in den Portal-Tab geben, nach jedem Neuladen
-// der Seite erneut. Danach stehen unter window._etg bereit:
-//   await _etg.load()                 Liste bis zum Ende nachladen, gibt die Zahl der Zeilen zurück
+// Helfer für das ETG24-Portal. Der Empfänger liefert diesen Helfer unter /etg24.js aus. Die Seite lädt ihn nach
+// jedem Neuladen erneut. Danach stehen unter window._etg bereit:
+//   await _etg.load()                 Liste etwa 8 Sekunden lang nachladen, gibt {zeilen, fertig} zurück
 //   _etg.rows()                       Zeilen der aktuellen Liste: {id, url, title, date, category, size, type}
 //   await _etg.save(name, text)       Text als Datei an den Empfänger schicken (z. B. die Liste als JSON)
 //   _etg.start([[titel, nr, präfix], …])   Downloads im Hintergrund starten, Ergebnis in _etg.res
@@ -16,19 +16,22 @@
     );
   const titles = () => [...document.querySelectorAll('[data-qa="document-list:row:title"]')];
 
-  // Der Download-Knopf erzeugt einen Blob und klickt einen unsichtbaren Link. Beides wird hier abgefangen, damit der
-  // Blob an den Empfänger gehen kann und Chrome keinen eigenen Download startet.
-  let blob = null;
-  let name = null;
+  // Der Download-Knopf erzeugt einen Blob und klickt einen unsichtbaren Link auf dessen Adresse. Beides wird hier
+  // abgefangen, damit der Blob an den Empfänger gehen kann und Chrome keinen eigenen Download startet. Die Seite kann
+  // auch für andere Zwecke Blob-Adressen erzeugen. Deshalb merkt sich der Helfer zu jeder Adresse ihren Blob und nimmt
+  // nur den Blob des geklickten Links.
+  const blobs = new Map();
+  let clicked = null;
   const createObjectURL = URL.createObjectURL;
   URL.createObjectURL = (b) => {
-    blob = b;
-    return createObjectURL.call(URL, b);
+    const url = createObjectURL.call(URL, b);
+    blobs.set(url, b);
+    return url;
   };
   const anchorClick = HTMLAnchorElement.prototype.click;
   HTMLAnchorElement.prototype.click = function () {
     if (this.href.startsWith('blob:')) {
-      name = this.download;
+      clicked = { blob: blobs.get(this.href), name: this.download };
       return;
     }
     return anchorClick.call(this);
@@ -55,32 +58,37 @@
       };
     });
 
+  // Ein Aufruf endet nach etwa 8 Sekunden, also vor dem Zeitlimit von javascript_tool. `fertig` ist wahr, wenn die
+  // Zahl der Zeilen über drei Prüfungen im Abstand von einer Sekunde gleich blieb. Sonst ruft der Agent load() erneut.
   async function load() {
-    let before = -1;
-    for (let n = 0; n < 40 && titles().length !== before; n++) {
-      before = titles().length;
+    const end = Date.now() + 8000;
+    let before = titles().length;
+    let stable = 0;
+    while (Date.now() < end) {
       window.scrollTo(0, document.body.scrollHeight);
       titles().pop()?.scrollIntoView();
-      await sleep(1500);
+      await sleep(1000);
+      const now = titles().length;
+      stable = now === before ? stable + 1 : 0;
+      before = now;
+      if (stable >= 3) return { zeilen: now, fertig: true };
     }
-    return titles().length;
+    return { zeilen: before, fertig: false };
   }
 
   async function get(title, nr = 0, prefix = '') {
     const row = titles().filter((t) => t.textContent.trim() === title)[nr];
     if (!row) return 'FEHLT ' + title;
-    blob = null;
-    name = null;
+    clicked = null;
     row.closest('[href]').click();
     await sleep(2500);
     button('Herunterladen').click();
-    for (let k = 0; k < 40 && !(blob && name); k++) await sleep(500);
-    const got = blob;
-    const fileName = prefix + name;
+    for (let k = 0; k < 40 && !clicked; k++) await sleep(500);
+    const got = clicked;
     button('Schließen')?.click();
     await sleep(800);
-    if (!got) return 'KEIN DOWNLOAD ' + title;
-    return 'ok ' + (await post(fileName, got)) + ' ' + got.size;
+    if (!got?.blob || !got.name) return 'KEIN DOWNLOAD ' + title;
+    return 'ok ' + (await post(prefix + got.name, got.blob)) + ' ' + got.blob.size;
   }
 
   window._etg = {

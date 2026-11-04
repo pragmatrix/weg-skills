@@ -10,13 +10,17 @@ Empfänger. Ablauf und JavaScript stehen im Skill `etg24-portal`.
 
 Unter `/etg24.js` liefert er außerdem den Helfer aus dem Skill aus, den die Seite damit selbst nachlädt.
 
-Der Empfänger lauscht nur auf 127.0.0.1:8765 und nimmt nur Anfragen der Seite https://app.etg24.de an. Den
+Der Empfänger lauscht nur auf 127.0.0.1:8765. Dateien nimmt er nur von der Seite https://app.etg24.de an. Den
 Dateinamen liefert der Kopf `X-Name`. Davon zählt nur der letzte Pfadteil. Eine vorhandene Datei wird nie
-überschrieben, der neue Name bekommt dann einen Zähler. Beenden mit Ctrl-C oder `pkill -f etg24_recv.py`.
+überschrieben, der neue Name bekommt dann einen Zähler.
+
+Nach dem Start gibt er eine Zeile mit seiner PID, seiner Adresse und dem Zielordner aus. Beenden mit Ctrl-C oder
+`kill PID`.
 """
 from pathlib import Path
 import errno
 import http.server
+import os
 import subprocess
 import sys
 import urllib.parse
@@ -92,8 +96,8 @@ def main():
         if e.errno != errno.EADDRINUSE:
             raise
         sys.exit(f"etg24_recv: Port {PORT} ist belegt, vermutlich durch einen Empfänger einer anderen Sitzung:\n"
-                 f"{running()}\nBeenden mit `pkill -f etg24_recv.py`, wenn er nicht mehr gebraucht wird.")
-    print(f"etg24_recv: http://127.0.0.1:{PORT}/ → {out}", flush=True)
+                 f"{running()}\nBeenden mit `kill PID`, wenn er nicht mehr gebraucht wird.")
+    print(f"etg24_recv: PID {os.getpid()}, http://127.0.0.1:{PORT}/ → {out}", flush=True)
     server.serve_forever()
 
 
