@@ -16,7 +16,7 @@ bleiben Verweise auf Dateien in einer Sicherung prüfbar, etwa auf die Dokumente
 Zu jedem Link auf ein PDF prüft das Skript außerdem die Fundstelle, wenn neben dem PDF eine Text-MD liegt. Das gilt
 für Links mit und ohne Tooltip und für die Endung `.pdf` in jeder Schreibweise:
 - Die Seite aus dem Linktext oder Tooltip („S. 3“, „S. 4–6“, „S. 1 und 3“) muss es im PDF geben. Ein Bereich
-  zählt aufsteigend, „S. 2–1“ ist ein Fehler.
+  zählt aufsteigend. „S. 2–1“ ist ein Fehler, auch als Teil einer Angabe wie „S. 2–1 und 3“.
 - Jedes Zitat „…“ im Tooltip muss auf einer dieser Seiten stehen. Ein „…“ im Zitat trennt Teilstücke, die einzeln
   gesucht werden. Gesucht wird in der Text-MD und, falls dort das Spaltenlayout den Satz zerreißt, im Text des PDF in
   Lesereihenfolge. Silbentrennung und Zeilenumbrüche zählen nicht. Kurze Stücke unter 12 Zeichen und zitierte
@@ -57,7 +57,7 @@ PLACEHOLDER = re.compile(r"[…*<\[]|JJJJ")
 PDF_LINK = re.compile(r'\[([^\]]+)\]\((?:<([^>]+\.pdf)>|([^)\s<>]+\.pdf))(?:\s+"([^"]*)")?\)', re.I)
 SEITEN = re.compile(r"S\. (\d+(?:\s*(?:[–-]|und|,)\s*\d+)*)")
 ZITAT = re.compile(r"(Abschnitte? )?„([^“]+)“")
-MD_LINK = re.compile(r'\[([^\]]*)\]\(<([^>#]+\.md)(?:#[^>]*)?>(?:\s+"([^"]*)")?\)')
+MD_LINK = re.compile(r'\[([^\]]*)\]\((?:<([^>#]+\.md)(?:#[^>]*)?>|([^)\s<>#]+\.md)(?:#[^)\s]*)?)(?:\s+"([^"]*)")?\)')
 POINT = re.compile(r"\b(Nr\.|Prüfpunkt|Frage|Befund|Grund|Änderungswunsch|Ergebnis) (\d+(?:\.\d+)*[a-z]?)\b")
 SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:", re.I)
 
@@ -126,10 +126,16 @@ def flat(text):
 
 
 def page_numbers(spec):
-    """Seiten einer Angabe. „4–6“ ergibt 4, 5 und 6. „1 und 3“ ergibt 1 und 3. Ein absteigender Bereich ergibt keine."""
+    """Seiten einer Angabe. „4–6“ ergibt 4, 5 und 6. „1 und 3“ ergibt 1 und 3.
+
+    Enthält die Angabe einen absteigenden Bereich, ist sie als Ganzes ungültig, und das Ergebnis ist leer. Sonst
+    würde „S. 2–1 und 3“ still nur auf S. 3 suchen.
+    """
     numbers = []
     for part in re.split(r"\s*(?:und|,)\s*", spec):
         a, _, b = part.partition("–") if "–" in part else part.partition("-")
+        if int(b or a) < int(a):
+            return []
         numbers += range(int(a), int(b or a) + 1)
     return numbers
 
@@ -200,7 +206,8 @@ def numbering_errors(text, folder, source):
     prose = CODE.sub(blank, FENCE.sub(blank, text))
     links = []
     for m in MD_LINK.finditer(prose):
-        label, target, tip = m.groups()
+        label, angled, bare, tip = m.groups()
+        target = angled or bare
         rel = os.path.normpath(folder / urllib.parse.unquote(target))
         body = None if rel.startswith("..") or under_symlink(rel) else source.read(rel)
         if body is not None and not body.startswith(MARKER):

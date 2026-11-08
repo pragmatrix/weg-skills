@@ -1,8 +1,8 @@
 """Tests für die Aktualität der Text-MDs in `weg-eigentuemer-ablage/scripts/pdf2md.py`.
 
 Eine MD gilt als aktuell, wenn der Hash in ihrer Markierung zum PDF passt. Nach `git clone` sind die Dateizeiten
-beliebig. Der Test hält fest, dass `--check` dann trotzdem jede MD als aktuell ansieht. Ohne Poppler wird er
-übersprungen.
+beliebig. Die Tests halten fest, dass `--check` dann trotzdem jede MD als aktuell ansieht und dass ein geändertes PDF
+seine MD veralten lässt. Ohne Poppler werden sie übersprungen.
 """
 import os
 import shutil
@@ -30,7 +30,7 @@ class FrischeTest(unittest.TestCase):
     def test_nach_clone_mit_neueren_pdfs_ist_jede_md_aktuell(self):
         klon = self.projekt.root.parent / "klon"
         git(self.projekt.root.parent, "clone", "-q", str(self.projekt.root), str(klon))
-        # Die PDFs bekommen eine spätere Zeit als ihre MDs. Nach dem alten Vergleich der Dateizeiten fehlte so jede MD.
+        # Die PDFs bekommen eine spätere Zeit als ihre MDs. Ein Vergleich der Dateizeiten hielte so jede MD für veraltet.
         spaeter = time.time() + 60
         for p in (klon / "Abrechnungen").glob("*.pdf"):
             os.utime(p, (spaeter, spaeter))

@@ -1,8 +1,8 @@
 """Tests für die Nummernprüfung in `weg-eigentuemer-ablage/scripts/check_links.py`.
 
 Ein Link auf eine eigene MD, dessen Linktext oder Tooltip einen Punkt wie „Nr. 4.2“ nennt, braucht im Ziel einen Punkt
-mit dieser Nummer. Links mit demselben Tooltip teilen sich ihre Ziele. Die Tests halten diese Regel und die Formen
-fest, in denen ein Punkt im Ziel beginnen darf.
+mit dieser Nummer. Links mit demselben Tooltip teilen sich ihre Ziele. Die Tests halten diese Regel fest und die
+Fälle, in denen eine Nummer im Ziel nicht genügt: im Fließtext oder als Anfang einer längeren Nummer.
 """
 import unittest
 
@@ -37,20 +37,22 @@ class NummernTest(unittest.TestCase):
         self.assertEqual(ergebnis.returncode, 1, ergebnis.stdout)
         self.assertIn("Punkt 4.2 gibt es in ohne.md nicht", ergebnis.stdout)
 
-    def test_formen_eines_punkts_im_ziel(self):
-        ziele = {
-            "liste": "- 4.2 Text",
-            "checkliste": "- [ ] 6.1 Text",
-            "tabelle": "| Nr. | Prüfpunkt |\n|---|---|\n| 1.8c | Text |",
-            "ueberschrift": "## 3. Ergebnis",
-            "nummeriert": "5. Text",
-        }
-        for name, text in ziele.items():
-            self.projekt.write(f"Abrechnungen/{name}.md", text + "\n")
-        links = [('liste', "Nr. 4.2"), ('checkliste', "Frage 6.1"), ('tabelle', "Prüfpunkt 1.8c"),
-                 ('ueberschrift', "Ergebnis 3"), ('nummeriert', "Nr. 5")]
-        ergebnis = self.pruefe("".join(f'[{name}](<{name}.md> "{punkt}")\n' for name, punkt in links))
-        self.assertEqual(ergebnis.returncode, 0, ergebnis.stdout)
+    def test_nummer_im_fliesstext_des_ziels_zaehlt_nicht(self):
+        self.projekt.write("Abrechnungen/prosa.md", "# Notiz\n\nSiehe Abschnitt 4.2. Danach folgt der Rest.\n")
+        ergebnis = self.pruefe('[Notiz](<prosa.md> "Nr. 4.2")\n')
+        self.assertEqual(ergebnis.returncode, 1, ergebnis.stdout)
+        self.assertIn("Punkt 4.2 gibt es in prosa.md nicht", ergebnis.stdout)
+
+    def test_laengere_vertragsnummer_im_ziel_zaehlt_nicht(self):
+        self.projekt.write("Abrechnungen/vertrag.md", "# Vertrag\n\nLaut Nr. 4.2.1 trägt die Verwaltung die Kosten.\n")
+        ergebnis = self.pruefe('[Vertrag](<vertrag.md> "Nr. 4.2")\n')
+        self.assertEqual(ergebnis.returncode, 1, ergebnis.stdout)
+        self.assertIn("Punkt 4.2 gibt es in vertrag.md nicht", ergebnis.stdout)
+
+    def test_link_ohne_spitze_klammern_wird_geprueft(self):
+        ergebnis = self.pruefe('[Notiz](ohne.md "Nr. 4.2")\n')
+        self.assertEqual(ergebnis.returncode, 1, ergebnis.stdout)
+        self.assertIn("Punkt 4.2 gibt es in ohne.md nicht", ergebnis.stdout)
 
 
 if __name__ == "__main__":

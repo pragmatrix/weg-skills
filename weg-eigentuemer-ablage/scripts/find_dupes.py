@@ -18,17 +18,19 @@ Anschreibens.
 from pathlib import Path
 import argparse
 import fnmatch
-import hashlib
 import sys
 
 import projekt
-from projekt import ROOT, nfc, skipped
+from projekt import ROOT, nfc, sha256, skipped
 
 SKIP_NAMES = {".DS_Store"}
 
 
 def ignore_patterns():
-    """Muster der gewollten Kopien aus `scripts/dupes-ignore.txt`."""
+    """Muster der gewollten Kopien aus `scripts/dupes-ignore.txt`.
+
+    Die Funktion bleibt in diesem Modul, weil `etg24_abgleich.py` im Skill `etg24-portal` sie von hier importiert.
+    """
     return projekt.ignore_patterns("dupes-ignore.txt")
 
 
@@ -45,14 +47,6 @@ def files(patterns):
         yield rel
 
 
-def digest(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
-
-
 def groups(paths):
     """Gruppen gleichen Inhalts. Erst nach Größe, dann nur bei gleicher Größe nach Prüfsumme."""
     by_size = {}
@@ -62,7 +56,7 @@ def groups(paths):
     for same_size in by_size.values():
         if len(same_size) > 1:
             for rel in same_size:
-                by_hash.setdefault(digest(ROOT / rel), []).append(rel)
+                by_hash.setdefault(sha256(ROOT / rel), []).append(rel)
     return [sorted(g) for g in by_hash.values() if len(g) > 1]
 
 
@@ -77,8 +71,8 @@ def main():
         for rel in files(patterns):
             index.setdefault((ROOT / rel).stat().st_size, []).append(rel)
         for new in args.dateien:
-            want = digest(new)
-            same = [rel for rel in index.get(new.stat().st_size, []) if digest(ROOT / rel) == want]
+            want = sha256(new)
+            same = [rel for rel in index.get(new.stat().st_size, []) if sha256(ROOT / rel) == want]
             same = [rel for rel in same if (ROOT / rel).resolve() != new.resolve()]
             print(f"{new}: " + (", ".join(r.as_posix() for r in same) if same else "neu"))
         return 0

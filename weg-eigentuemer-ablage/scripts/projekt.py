@@ -1,8 +1,9 @@
 """Projektordner der Ablage und die Regeln, welche Dateien die Skripte der WEG-Skills durchsuchen.
 
 Der Projektordner ist das Wurzelverzeichnis des Git-Repositorys, in dem ein Ordner liegt. Liegt der Ordner in keinem
-Repository, ist er selbst der Projektordner. Die Rezepte aus `ablage.just` laufen im Ordner der `justfile` des
-Projekts und finden ihn deshalb immer.
+Repository, ist es der nächste Ordner auf dem Weg nach oben, in dem eine `justfile` und ein Hauptordner liegen. Die
+`justfile` unterscheidet ihn von einem fremden Ordner, der zufällig etwa `Verwaltung/` enthält. So finden ihn auch
+die Rezepte aus `ablage.just`, die mit `[no-cd]` im aktuellen Ordner laufen, etwa in `Abrechnungen/2025/`.
 
 Ein Projektordner hat mindestens einen der Hauptordner aus dem Skill `weg-eigentuemer-ablage`. Fehlen alle, bricht
 jedes Skript ab. So legt etwa `pdf2md.py` keine MDs in einem fremden Repository an, wenn es dort aufgerufen wird.
@@ -17,6 +18,7 @@ Skripte anderer Skills binden diese Datei über den Pfad des installierten Skill
 """
 from functools import cache
 from pathlib import Path, PurePath
+import hashlib
 import subprocess
 import sys
 import unicodedata
@@ -31,10 +33,17 @@ SKIP_DIRS = frozenset({"tmp", "Notizen", "scripts"})
 def projektordner(start=".") -> Path:
     """Projektordner zu dem Ordner `start`. Ist er kein WEG-Projektordner, bricht das Skript ab."""
     out = subprocess.run(["git", "-C", str(start), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
-    root = Path(out.stdout.strip() if out.returncode == 0 else start).resolve()
-    if not any((root / d).is_dir() for d in HAUPTORDNER):
-        sys.exit(f"{root} ist kein WEG-Projektordner: keiner der Ordner {', '.join(HAUPTORDNER)} ist da.")
-    return root
+    if out.returncode == 0:
+        kandidaten = [Path(out.stdout.strip()).resolve()]
+    else:
+        start = Path(start).resolve()
+        kandidaten = [p for p in (start, *start.parents) if (p / "justfile").is_file()] or [start]
+    for root in kandidaten:
+        if any((root / d).is_dir() for d in HAUPTORDNER):
+            return root
+    ohne_git = "" if out.returncode == 0 else "Er liegt in keinem Git-Repository und hat keine justfile, oder "
+    sys.exit(f"{kandidaten[0]} ist kein WEG-Projektordner. {ohne_git}keiner der Ordner {', '.join(HAUPTORDNER)} "
+             "ist da.")
 
 
 @cache
@@ -74,3 +83,9 @@ def ignore_patterns(name: str) -> list[str]:
 
 def nfc(text: str) -> str:
     return unicodedata.normalize("NFC", text)
+
+
+def sha256(path: Path) -> str:
+    """SHA-256-Hash des Inhalts einer Datei, als Hex-Text."""
+    with open(path, "rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()

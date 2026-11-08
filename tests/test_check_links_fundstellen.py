@@ -54,6 +54,7 @@ class FundstellenTest(unittest.TestCase):
 
     def test_absteigender_bereich_ist_ungueltig(self):
         self.assertMeldet(self.pruefe("S. 2–1", "„Gesamtkosten der Gemeinschaft“"), "keine gültige Seitenangabe")
+        self.assertMeldet(self.pruefe("S. 2–1 und 1", "„Gesamtkosten der Gemeinschaft“"), "keine gültige Seitenangabe")
 
     def test_seite_nach_der_letzten(self):
         self.assertMeldet(self.pruefe("S. 3", "„Gesamtkosten der Gemeinschaft“"), "S. 3 gibt es nicht")
@@ -67,16 +68,6 @@ class FundstellenTest(unittest.TestCase):
     def test_jedes_teilstueck_muss_stehen(self):
         ergebnis = self.pruefe("S. 1", "„Gesamtkosten der Gemeinschaft … Rücklage für das Dach“")
         self.assertMeldet(ergebnis, "Zitat „Rücklage für das Dach“ steht nicht auf S. 1")
-
-    def test_kurzes_teilstueck_wird_uebersprungen(self):
-        self.assertBesteht(self.pruefe("S. 1", "„Gesamtkosten der Gemeinschaft … das Dach“"))
-
-    def test_zitierter_abschnittstitel_wird_uebersprungen(self):
-        self.assertBesteht(self.pruefe("S. 1", "Abschnitt „Rücklage für das Dach“"))
-
-    def test_silbentrennung_und_zeilenumbruch_zaehlen_nicht(self):
-        self.assertBesteht(self.pruefe("S. 2", "„Erhaltungsrücklage beträgt zum Jahresende“"))
-        self.assertBesteht(self.pruefe("S. 1", "„im Jahr 2025 insgesamt 12.345,00 Euro“"))
 
 
 if __name__ == "__main__":

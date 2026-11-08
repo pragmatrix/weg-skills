@@ -24,14 +24,13 @@ wird, falls vorhanden, Tesseract für OCR verwendet (bevorzugt Sprache `deu`, so
 from pathlib import Path
 import argparse
 import fnmatch
-import hashlib
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 
-from projekt import ROOT, ignore_patterns, nfc, skipped
+from projekt import ROOT, ignore_patterns, nfc, sha256, skipped
 
 # Jede erzeugte MD beginnt in Zeile 1 mit `MARKER`. Der Anfang nennt den früheren Ort dieses Skripts und bleibt so,
 # damit auch ältere MDs als erzeugt erkannt werden. Hinter ihm steht der Hash des PDFs in der Form `sha256=<hex>`.
@@ -61,11 +60,6 @@ def marker(md):
 
 def is_generated(md):
     return marker(md) is not None
-
-
-def pdf_hash(pdf):
-    with pdf.open("rb") as f:
-        return hashlib.file_digest(f, "sha256").hexdigest()
 
 
 def state(md, digest):
@@ -151,11 +145,12 @@ def main():
     todo, manual, unreadable = [], [], []
     wanted = {pdf.with_suffix(".md"): pdf for pdf in pdfs(ignore_patterns("pdf2md-ignore.txt"))}
     for md, pdf in sorted(wanted.items()):
-        digest = pdf_hash(pdf)
+        digest = sha256(pdf)
         status = state(md, digest)
         if status == "von Hand":
             manual.append(md)
-        elif a.force or status != "aktuell":
+        # --check meldet nur, was nicht aktuell ist. --force wirkt deshalb nur beim Erzeugen.
+        elif status != "aktuell" or (a.force and not a.check):
             todo.append((pdf, md, digest, status))
 
     # Eine erzeugte MD ist verwaist, wenn ihr PDF gelöscht, umbenannt oder per pdf2md-ignore.txt ausgenommen ist.
