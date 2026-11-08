@@ -2,8 +2,8 @@
 """Korrelation: Zahlungseingänge aus der WEG-Einzelabrechnung vs. Bank-Umsätze.
 
 Vergleicht die `zahlungen.liste` aus der Abrechnungs-JSON (weg_abrechnung_JJJJ_weN.json)
-mit den Bank-Umsätzen in konto_JJJJ.json, deren Partner den vollen Namen aus `einheit.eigentuemer` trägt
-(siehe `namens_woerter`).
+mit den Bank-Umsätzen in konto_JJJJ.json, deren Partner den vollen Namen eines der Eigentümer aus
+`einheit.eigentuemer` trägt (siehe `eigentuemer_namen` und `passt`).
 
 Sonderfälle (siehe SKILL.md, Fallstricke):
 - Sammel-Lastschrift: Die Einzelzahlung des Eigentümers steckt in einer Sammelbuchung
@@ -20,10 +20,15 @@ Sonderfälle (siehe SKILL.md, Fallstricke):
 Aufruf:
     python3 korrelation_zahlungen.py weg_abrechnung_JJJJ_weN.json konto_JJJJ.json
 
-Jede Zahlung ohne Bankbuchung (FEHLT), jede Zahlung im Zeitraum eines fehlenden Auszugs (UNVERIFIZIERBAR) und jeder
-Eingang des Eigentümers, der in der Abrechnung fehlt, ist eine Lücke. Eine Lücke gilt als geklärt, wenn ein Eintrag
-unter `offene_punkte` der Abrechnungs-JSON mit ihrem Schlüssel beginnt (siehe luecken.py). Das Skript gibt die
-Schlüssel der ungeklärten Lücken aus.
+Jede Zahlung ohne Bankbuchung (FEHLT) und jede Zahlung im Zeitraum eines fehlenden Auszugs (UNVERIFIZIERBAR) ist
+eine Lücke. Eine Lücke ist auch jeder Eingang des Eigentümers im Abrechnungszeitraum, der weder einer Zahlung dieser
+Abrechnung noch dem Zahlungseingang auf die Vorjahre zugeordnet ist. Dabei zählen auch die Zahlungen der anderen
+Einheiten desselben Eigentümers. Als solche gilt jede Abrechnungs-JSON im selben Ordner mit gleichem Zeitraum und
+gleichem Eigentümer. Nennt keine Bankbuchung einen der Eigentümer, ist das eine eigene Lücke, damit eine
+abweichende Schreibweise nicht als Reihe einzelner Zahlungslücken durchgeht.
+
+Eine Lücke gilt als geklärt, wenn ein Eintrag unter `offene_punkte` der Abrechnungs-JSON mit ihrem Schlüssel beginnt
+(siehe luecken.py). Das Skript gibt die Schlüssel der ungeklärten Lücken aus.
 
 Exit-Code 0 = jede Zahlung ist direkt oder indirekt belegt, oder ihre Lücke ist dokumentiert.
 Exit-Code 1 = es gibt mindestens eine Lücke ohne Eintrag unter `offene_punkte`.
@@ -36,6 +41,7 @@ import unicodedata
 
 import luecken
 from datetime import datetime
+from pathlib import Path
 
 # Höchstes Bankentgelt, das eine Rücklastschrift auf den geplatzten Betrag aufschlägt.
 # Die Retoure in der Abrechnung ist dann -(Betrag + Entgelt). Das Entgelt hängt von der Bank ab.
@@ -43,18 +49,65 @@ ENTGELT_MAX = 10.00
 
 
 UMLAUTE = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
+# Wörter im Feld `einheit.eigentuemer`, die zu keinem Namen gehören.
+FUELLWOERTER = {"eheleute", "familie", "herr", "herrn", "frau"}
+# Trennt Personen innerhalb eines Teils von `einheit.eigentuemer`, etwa „Hans und Erika Müller“.
+PERSONEN_TRENNER = re.compile(r"\s+und\s+|&", re.IGNORECASE)
 
 
-def namens_woerter(name):
+def woerter(text):
     """Die Wörter eines Namens in einer Form, in der Schreibweisen der Bank und der Abrechnung gleich aussehen.
 
-    Groß- und Kleinschreibung, Umlaute („Müller“ und „MUELLER“), Satzzeichen und die Reihenfolge („Müller, Hans“ und
-    „Hans Müller“) spielen dann keine Rolle. Abkürzungen mit Punkt wie „Dr.“ zählen nicht, weil die Bank sie oft
-    weglässt.
+    Groß- und Kleinschreibung, Umlaute („Müller“ und „MUELLER“), andere Akzente („René“ und „RENE“) und Satzzeichen
+    spielen dann keine Rolle. Ein Bindestrich bleibt im Wort, damit „Hans-Peter“ ein Vorname bleibt. `teile` trennt
+    ihn für den Vergleich. Abkürzungen mit Punkt wie „Dr.“ zählen nicht, weil die Bank sie oft weglässt.
     """
-    name = unicodedata.normalize("NFC", name).casefold().translate(UMLAUTE)
-    woerter = [w for w in name.replace(",", " ").split() if not w.endswith(".")]
-    return {w for w in (re.sub(r"[^a-z0-9-]", "", w) for w in woerter) if w}
+    text = unicodedata.normalize("NFC", text).casefold().translate(UMLAUTE)
+    text = "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    ergebnis = []
+    for w in text.split():
+        if w.endswith("."):
+            continue
+        w = re.sub(r"[^a-z0-9-]", "", w).strip("-")
+        if w and w not in FUELLWOERTER:
+            ergebnis.append(w)
+    return ergebnis
+
+
+def teile(woerter_liste):
+    """Die Wörter ohne Bindestriche als Menge. So passt „Hans-Peter“ auf „HANS PETER“ und auf „HANS-PETER“."""
+    return {t for w in woerter_liste for t in w.split("-") if t}
+
+
+def eigentuemer_namen(feld):
+    """Die einzelnen Eigentümer aus `einheit.eigentuemer`, je als Menge der Wörter ihres vollen Namens.
+
+    Ein „;“ trennt Eigentümer mit verschiedenen Nachnamen. Innerhalb eines Teils trennen „und“ und „&“ die Personen,
+    und alle Personen eines Teils tragen denselben Nachnamen. Steht ein Komma im Teil, ist alles davor dieser
+    Nachname, wie in „Müller, Hans und Erika“. Sonst ist es das letzte Wort der letzten Person. Jede Person, die nicht
+    schon darauf endet, bekommt ihn angehängt. So wird „Hans Peter und Erika Müller“ zu „Hans Peter Müller“ und
+    „Erika Müller“, und eine Zahlung von „Hans Peter Schmidt“ zählt nicht.
+    """
+    namen = []
+    for teil in feld.split(";"):
+        nachname = []
+        if "," in teil:
+            vorne, teil = teil.split(",", 1)
+            nachname = woerter(vorne)
+        personen = [p for p in (woerter(x) for x in PERSONEN_TRENNER.split(teil)) if p]
+        if not nachname:
+            nachname = personen[-1][-1:] if personen and len(personen[-1]) > 1 else []
+            personen = [p if p[-len(nachname):] == nachname else p + nachname for p in personen]
+        else:
+            personen = [p + nachname for p in personen] or [nachname]
+        namen += [teile(p) for p in personen if p]
+    return namen
+
+
+def passt(namen, partner):
+    """Nennt der Partner einer Bankbuchung alle Wörter des Namens von mindestens einem der Eigentümer?"""
+    partner_teile = teile(woerter(partner))
+    return any(name <= partner_teile for name in namen)
 
 
 def parse_date(s):
@@ -70,13 +123,38 @@ def main():
     konto = json.load(open(sys.argv[2]))
 
     eigentuemer = abrechnung["einheit"]["eigentuemer"]
-    name = namens_woerter(eigentuemer)
+    namen = eigentuemer_namen(eigentuemer)
+    zeitraum = abrechnung["abrechnungszeitraum"]
+    von, bis = parse_date(zeitraum["von"]), parse_date(zeitraum["bis"])
     payments = abrechnung["zahlungen"]["liste"]
     for p in payments:
         p["datum"] = parse_date(p["datum"])
 
-    # Bank-Zahlungen des Eigentümers: Der Partner enthält jedes Wort seines Namens als ganzes Wort,
-    # signiert nach soll_haben (haben = positiv, soll = negativ).
+    # Die Abrechnungen der anderen Einheiten desselben Eigentümers im selben Zeitraum. Ihre Zahlungen und ihr
+    # Zahlungseingang auf die Vorjahre sind keine Lücke dieser Abrechnung. Die Reihenfolge der Eigentümer im Feld
+    # zählt nicht. Zwei Dateien für dieselbe Einheit, etwa eine Kopie, würden Eingänge doppelt verbrauchen.
+    eigene = Path(sys.argv[1]).resolve()
+    eigentuemer_menge = {frozenset(n) for n in namen}
+    einheiten = {abrechnung["einheit"]["nummer"]: eigene}
+    andere = []
+    for pfad in sorted(eigene.parent.glob("weg_abrechnung_*_we*.json")):
+        if pfad.resolve() == eigene:
+            continue
+        a = json.load(open(pfad, encoding="utf-8"))
+        if a.get("abrechnungszeitraum") != zeitraum:
+            continue
+        nummer = a["einheit"]["nummer"]
+        if nummer in einheiten:
+            sys.exit(f"ABBRUCH: {einheiten[nummer].name} und {pfad.name} gelten beide für Einheit {nummer} "
+                     f"im selben Zeitraum. Eine davon gehört nicht in den Ordner.")
+        einheiten[nummer] = pfad
+        if {frozenset(n) for n in eigentuemer_namen(a["einheit"]["eigentuemer"])} == eigentuemer_menge:
+            andere.append(a)
+    andere_zahlungen = [dict(q, datum=parse_date(q["datum"])) for a in andere for q in a["zahlungen"]["liste"]]
+    vorjahres_eingaenge = [a.get("vorjahre", {}).get("zahlungseingang", 0) for a in (abrechnung, *andere)]
+
+    # Bank-Zahlungen des Eigentümers. Ihr Partner enthält jedes Wort des Namens eines Eigentümers. Der Betrag trägt
+    # das Vorzeichen aus soll_haben (haben positiv, soll negativ).
     bank = []
     fehlende_auszuege = []  # (von, bis) Zeiträume ohne Kontoauszug
     for konto_entry in konto["konten"]:
@@ -87,7 +165,7 @@ def main():
                      parse_date(auszug["neuer_kontostand"]["vom"][:10]))
                 )
             for t in auszug["transaktionen"]:
-                if not name <= namens_woerter(t.get("partner", "")):
+                if not passt(namen, t.get("partner", "")):
                     continue
                 betrag = t["betrag"] if t.get("soll_haben") == "haben" else -t["betrag"]
                 bank.append({
@@ -163,7 +241,21 @@ def main():
                 results.append((p, "INDIREKT", f"belegt durch Retoure {rb['auszug']} vom {rb['datum']} (VZ: {rb['vz']})"))
                 break
 
-    # Pass 3: Rest klassifizieren.
+    # Pass 3: Bank-Eingänge, die zu einer anderen Einheit desselben Eigentümers oder zum Zahlungseingang auf die
+    # Vorjahre gehören. Erst danach, damit die Zahlungen dieser Abrechnung zuerst zugeordnet werden.
+    for q in andere_zahlungen:
+        m = find(same, q, 3)
+        if m is not None:
+            used[m[1]] = True
+    for eingang in vorjahres_eingaenge:
+        if eingang > 0:
+            i = next((i for i, b in enumerate(bank)
+                      if not used[i] and von <= b["datum"] <= bis and round(b["betrag"], 2) == round(eingang, 2)),
+                     None)
+            if i is not None:
+                used[i] = True
+
+    # Pass 4: Rest klassifizieren.
     verifiziert = 0
     probleme = []
     for p in payments:
@@ -176,11 +268,10 @@ def main():
             results.append((p, "FEHLT", "keine passende Bank-Buchung gefunden"))
             probleme.append(p)
 
-    # Kontrolle: Bank-Buchungen des Eigentümers, die in der Abrechnung fehlen
-    # (innerhalb des Abrechnungszeitraums, ohne Abgleich über Sammel-Lastschrift).
+    # Kontrolle: Zahlungseingänge des Eigentümers im Abrechnungszeitraum, die keiner Zahlung zugeordnet sind.
     fehlen_in_abrechnung = []
     for i, b in enumerate(bank):
-        if used[i]:
+        if used[i] or not von <= b["datum"] <= bis:
             continue
         # Retouren deckt Pass 2 ab. Übrig bleiben Daueraufträge und Überweisungen.
         if "retoure" in b["art"].lower():
@@ -209,14 +300,19 @@ def main():
     n_fehlt = sum(1 for _, s, _ in results if s == "FEHLT")
     print(f"  direkt belegt: {n_ok} | indirekt belegt (Retoure): {n_ind} | unverifizierbar (Auszug fehlt): {n_unv} | OHNE Bank-Beleg: {n_fehlt}")
 
+    if not bank:
+        print(f"\nKeine Bankbuchung nennt einen der Eigentümer aus „{eigentuemer}“. "
+              "Schreibweise im Kontoauszug prüfen.")
     if fehlen_in_abrechnung:
-        print("\nHinweis - Zahlungseingänge des Eigentümers in der Bank, die nicht in der Abrechnung stehen:")
+        print("\nZahlungseingänge des Eigentümers in der Bank, die nicht in der Abrechnung stehen:")
         for b in fehlen_in_abrechnung:
             print(f"  ? {b['datum']}  {b['betrag']:>10.2f} €  Auszug {b['auszug']}  VZ: {b['vz']}")
 
     lueckenliste = [luecken.zahlung(status.lower(), p["datum"], p["betrag"])
                     for p, status, _ in results if status in ("FEHLT", "UNVERIFIZIERBAR")]
     lueckenliste += [luecken.zahlung("fehlt in Abrechnung", b["datum"], b["betrag"]) for b in fehlen_in_abrechnung]
+    if not bank:
+        lueckenliste.append(luecken.bankbuchung(eigentuemer))
     offen = [l for l in lueckenliste if not luecken.dokumentiert(l, abrechnung.get("offene_punkte"))]
     if offen:
         print("\nERGEBNIS: Lücken ohne Eintrag unter offene_punkte. Jeder Eintrag beginnt mit dem Schlüssel:")

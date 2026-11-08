@@ -111,7 +111,7 @@ Platzhalter nicht und reicht nur den Saldo weiter.
     { "dateien": ["a.pdf", "b.pdf"], "art": "Vollständiges Duplikat", "erklaerung": "…" }
   ],
   "offene_punkte": [                         // Lücken beginnen mit ihrem Schlüssel (luecken.py), dann der Grund
-    "fehlt: Kontoauszug DE00 0000 0000 0000 0000 00 7/2025 – beim Nutzer angefragt",
+    "fehlt: Kontoauszug 0000000000 7/2025 – beim Nutzer angefragt", // mit der kontonummer des Kontos
     "Differenz Versicherung 612,30 vs. 615,30 …"
   ]
 }

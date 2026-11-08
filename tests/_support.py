@@ -48,7 +48,29 @@ class Projekt:
                               capture_output=True, text=True)
 
 
+KONTONUMMER = "0000000000"
+
+
+def buchung(datum, partner, betrag, soll_haben="haben", art="Gutschrift", verwendungszweck="Hausgeld"):
+    """Eine Transaktion eines Kontoauszugs in konto_JJJJ.json."""
+    return {"buchungstag": datum, "wertstellung": datum, "art": art, "partner": partner, "betrag": betrag,
+            "soll_haben": soll_haben, "verwendungszweck": verwendungszweck}
+
+
+def auszug(nr, alt, neu, von, bis, *transaktionen, datei="x.pdf"):
+    """Ein Kontoauszug vom Tag `von` bis `bis` mit altem und neuem Kontostand. `datei=None` ist ein Platzhalter."""
+    return {"nr": nr, "datei": datei, "alter_kontostand": {"betrag": alt, "vom": von},
+            "neuer_kontostand": {"betrag": neu, "vom": bis}, "transaktionen": list(transaktionen)}
+
+
+def konto(anfang, ende, *auszuege, jahr=2025):
+    """konto_JJJJ.json mit einem Konto, seinem Saldo am Ende des Vorjahres (`anfang`) und des Jahres (`ende`)."""
+    return {"jahr": jahr, "konten": [{"kontonummer": KONTONUMMER, f"saldo_31_12_{jahr - 1}": anfang,
+                                      f"saldo_31_12_{jahr}": ende, "auszuege": list(auszuege)}]}
+
+
 def git(cwd, *args):
+    """Ruft git mit festem Namen und fester Adresse auf, damit `commit` auch ohne eingerichtete Git-Identität geht."""
     subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", *args], cwd=cwd,
                    check=True, capture_output=True)
 

@@ -9,7 +9,8 @@ neben der Zahlung gebucht ist.
 """
 import unittest
 
-from _support import Projekt
+from _support import Projekt, auszug, buchung
+from _support import konto as konto_json
 
 SKRIPT = "weg-konten-belege/korrelation_zahlungen.py"
 ORDNER = "Abrechnungen/2025"
@@ -18,15 +19,10 @@ ZAHLUNG = "2025-03-03"
 
 def konto(retoure_datum, retoure_betrag=253.00):
     """Ein Auszug für das ganze Jahr. Er enthält nur die Retoure."""
-    stand = lambda b, vom: {"betrag": b, "vom": vom}
     entgelt = f"{retoure_betrag - 250:.2f}".replace(".", ",")
-    return {"jahr": 2025, "konten": [{
-        "kontonummer": "DE00 0000 0000 0000 0000 00", "saldo_31_12_2024": 1000.00, "saldo_31_12_2025": 747.00,
-        "auszuege": [{"nr": "1/2025", "datei": "x.pdf", "alter_kontostand": stand(1000.00, "2025-01-01"),
-                      "neuer_kontostand": stand(747.00, "2025-12-31"), "transaktionen": [
-                          {"buchungstag": retoure_datum, "wertstellung": retoure_datum, "art": "Retoure",
-                           "partner": "Hans Müller", "betrag": retoure_betrag, "soll_haben": "soll",
-                           "verwendungszweck": f"Rücklastschrift Hausgeld 250,00 + Entgelt {entgelt}"}]}]}]}
+    retoure = buchung(retoure_datum, "Hans Müller", retoure_betrag, soll_haben="soll", art="Retoure",
+                      verwendungszweck=f"Rücklastschrift Hausgeld 250,00 + Entgelt {entgelt}")
+    return konto_json(1000.00, 747.00, auszug("1/2025", 1000.00, 747.00, "2025-01-01", "2025-12-31", retoure))
 
 
 def abrechnung(gegenbuchung_datum, gegenbuchung_betrag=-253.00):
@@ -61,7 +57,7 @@ class RetourenTest(unittest.TestCase):
         # Die Retoure liegt 4 Tage neben der Gegenbuchung, zu weit für Durchgang 1. Erst Durchgang 2 ordnet sie zu.
         ergebnis = self.korreliere(konto("2025-03-08"), abrechnung("2025-03-04"))
         self.assertIndirekt(ergebnis)
-        self.assertIn("OK               Retoure 1/2025 vom 2025-03-08", ergebnis.stdout)
+        self.assertRegex(ergebnis.stdout, r"OK\s+Retoure 1/2025 vom 2025-03-08")
 
     def test_entgelt_ueber_dem_hoechstwert(self):
         ergebnis = self.korreliere(konto("2025-03-08", 261.00), abrechnung("2025-03-04", -261.00))
@@ -77,7 +73,7 @@ class RetourenTest(unittest.TestCase):
         # Die Retoure liegt einen Tag neben der Gegenbuchung. Durchgang 1 ordnet sie ihr deshalb schon exakt zu.
         ergebnis = self.korreliere(konto("2025-03-05"), abrechnung("2025-03-04"))
         self.assertIndirekt(ergebnis)
-        self.assertIn("OK               Bank 1/2025", ergebnis.stdout)
+        self.assertRegex(ergebnis.stdout, r"OK\s+Bank 1/2025")
 
 
 if __name__ == "__main__":

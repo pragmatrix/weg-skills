@@ -2,7 +2,8 @@
 
 Eine Lücke ist eine Angabe, die ein Skript nicht prüfen kann. Beispiele sind ein fehlender Kontoauszug oder eine
 Zahlung der Abrechnung ohne passende Bankbuchung. Jede Lücke hat einen Schlüssel, etwa
-„fehlt: Kontoauszug DE00 0000 0000 0000 0000 00 7/2025“ oder „fehlt: Zahlung 2025-03-01 250,00“.
+„fehlt: Kontoauszug 0000000000 7/2025“ oder „fehlt: Zahlung 2025-03-01 250,00“. Ein Kontoauszug steht dort mit der
+`kontonummer` seines Kontos, so wie sie in konto_JJJJ.json steht.
 
 Ein Eintrag unter `offene_punkte` dokumentiert eine Lücke, wenn er mit ihrem Schlüssel beginnt. Direkt nach dem
 Schlüssel darf kein Buchstabe und keine Ziffer folgen, damit „… 7/2025“ nicht auch „… 7/20251“ abdeckt. Nach dem
@@ -21,6 +22,11 @@ def kontoauszug(konto, nr):
 def zahlung(art, datum, betrag):
     """Schlüssel einer Zahlung, etwa `zahlung("fehlt", "2025-03-01", 250)` → „fehlt: Zahlung 2025-03-01 250,00“."""
     return f"{art}: Zahlung {datum} " + f"{betrag:.2f}".replace(".", ",")
+
+
+def bankbuchung(eigentuemer):
+    """Schlüssel der Lücke, dass keine Bankbuchung einen der Eigentümer aus `einheit.eigentuemer` nennt."""
+    return f"fehlt: Bankbuchung von {eigentuemer}"
 
 
 def dokumentiert(schluessel, offene_punkte):

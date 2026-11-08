@@ -34,6 +34,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from decimal import Decimal
@@ -54,10 +55,7 @@ MWST_SCHLUESSEL = re.compile(r"mwst_(\d+)_prozent")
 
 def pdf_seiten(pfad):
     """Seitenzahl des PDFs laut `pdfinfo`, oder None, wenn `pdfinfo` sie nicht liefert."""
-    try:
-        out = subprocess.run(["pdfinfo", pfad], capture_output=True, text=True)
-    except FileNotFoundError:
-        sys.exit("ABBRUCH: pdfinfo fehlt. Es gehört zu Poppler und prüft die Seiten der Fundstellen.")
+    out = subprocess.run(["pdfinfo", pfad], capture_output=True, text=True)
     for zeile in out.stdout.splitlines():
         if zeile.startswith("Pages:"):
             return int(zeile.split()[1])
@@ -184,7 +182,9 @@ if b and jahr:
                 fehler.append(f"{name}: netto {netto} + MwSt. {summe} = {netto + summe} != brutto {brutto}")
             if len(mwst) == 1:
                 satz, betrag = next(iter(mwst.items()))
-                erwartet = (netto * satz / 100).quantize(CENT)
+                # json liefert einen Betrag ohne Nachkommastellen als int. Mit dem int-Satz ergäbe das einen float
+                # ohne quantize.
+                erwartet = (Decimal(netto) * satz / 100).quantize(CENT)
                 if abs(erwartet - betrag) > MWST_TOLERANZ:
                     fehler.append(f"{name}: {satz} % von {netto} = {erwartet} != MwSt. {betrag}")
 
@@ -210,12 +210,21 @@ if os.path.isdir(belege_dir):
             fehler.append(f"byte-identische Belege ohne Eintrag unter dubletten_pruefelder: {', '.join(gruppe)}")
 
 # ---- 10. Fundstellen "fundstelle" -------------------------------------------
-wurzel = str(projektordner(ORDNER))
+# Ohne Projektordner oder pdfinfo ist Prüfung 10 nicht möglich. Das ist ein Fehler wie jeder andere, damit die
+# Befunde der Prüfungen 1 bis 9 trotzdem erscheinen.
+try:
+    wurzel = str(projektordner(ORDNER))
+except SystemExit as abbruch:
+    fehler.append(f"Fundstellen nicht geprüft: {abbruch}")
+    wurzel = None
+hat_pdfinfo = shutil.which("pdfinfo") is not None
+if wurzel and not hat_pdfinfo:
+    fehler.append("Seiten der Fundstellen nicht geprüft: pdfinfo fehlt. Es gehört zu Poppler.")
 n_fundstellen = 0
 abrechnungen = [lade_json(p)
                 for p in sorted(glob.glob(os.path.join(ORDNER, "weg_abrechnung_*.json")))
                 if not p.endswith(".schema.json")]
-for daten in (k, b, *abrechnungen):
+for daten in (k, b, *abrechnungen) if wurzel else ():
     for pfad, q in fundstellen(daten or {}):
         n_fundstellen += 1
         datei = os.path.join(wurzel, q.get("datei") or "")
@@ -223,7 +232,7 @@ for daten in (k, b, *abrechnungen):
             fehler.append(f"fundstelle {pfad}: Datei fehlt: {q.get('datei')}")
             continue
         seite = q.get("seite")
-        if seite is not None and datei.lower().endswith(".pdf"):
+        if seite is not None and hat_pdfinfo and datei.lower().endswith(".pdf"):
             n = pdf_seiten(datei)
             if n is None:
                 fehler.append(f"fundstelle {pfad}: pdfinfo liefert keine Seitenzahl für {q['datei']}")

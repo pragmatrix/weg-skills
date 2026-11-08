@@ -34,9 +34,12 @@ Die Rezepte liegen in `konten.just` neben dieser Datei. Die `justfile` des Proje
   Buchungslisten, Positionssummen, Netto + MwSt. = Brutto, die Paare unter `pruefungen`, byte-gleiche Belege ohne
   Eintrag unter `dubletten_pruefelder` und jede `fundstelle`. Es vergleicht Beträge exakt auf den Cent. Exit-Code 1
   heißt Fehler, auch wenn eine der beiden JSONs fehlt.
-- `just zahlungen JAHR N` gleicht die Zahlungen von Einheit `N` laut Abrechnung mit den Kontoauszügen ab. Es meldet
-  Zahlungen ohne Bankbeleg, Zahlungen im Zeitraum eines fehlenden Auszugs und Eingänge des Eigentümers, die in der
-  Abrechnung fehlen.
+- `just zahlungen JAHR N` gleicht die Zahlungen von Einheit `N` laut Abrechnung mit den Kontoauszügen ab. Als
+  Zahlung des Eigentümers zählt eine Bankbuchung, deren Partner den vollen Namen eines der Eigentümer nennt. Es meldet
+  Zahlungen ohne Bankbeleg, Zahlungen im Zeitraum eines fehlenden Auszugs und Eingänge des Eigentümers im
+  Abrechnungszeitraum, die in der Abrechnung fehlen. Ein Eingang, der zu einer anderen Einheit desselben Eigentümers
+  oder zum Zahlungseingang auf die Vorjahre passt, fehlt nicht. Nennt keine Bankbuchung einen der Eigentümer, meldet es
+  das als eigene Lücke „fehlt: Bankbuchung von …“.
 - Beide Rezepte melden **Lücken**: Angaben, die sich mit den vorhandenen Unterlagen nicht prüfen lassen. Jede Lücke
   hat einen Schlüssel, den das Skript ausgibt, etwa „fehlt: Kontoauszug … 7/2025“. Eine Lücke ist dokumentiert, wenn
   ein Eintrag unter `offene_punkte` mit ihrem Schlüssel beginnt und danach den Grund nennt. Eine Lücke ohne Eintrag
@@ -76,6 +79,10 @@ nach `unzip` unter `word/media/`.
   Retoure den Betrag, gilt die Zahlung als indirekt belegt. Sonst meldet `just zahlungen` sie als Lücke. Prüfe dann
   in der Buchungsliste der Verwaltung, ob die Lastschrift des Nutzers dort steht, und nenne das Ergebnis im Eintrag
   unter `offene_punkte`.
+- **Name in der Bank:** „fehlt: Bankbuchung von …“ heißt, dass kein Partner im Kontoauszug den Namen eines
+  Eigentümers trägt. Zahlt der Nutzer nur per Sammel-Lastschrift, ist das richtig. Sonst schreibt die Bank den Namen
+  anders als die Abrechnung, etwa abgekürzt oder unter einem Firmennamen. Dann vergleichst du die Partner im
+  Kontoauszug mit `einheit.eigentuemer` und nennst die Schreibweise der Bank im Eintrag unter `offene_punkte`.
 
 - **Retouren:** Eine Rücklastschrift fasst den geplatzten Betrag und das Bankentgelt in einem Betrag zusammen. Die
   Buchungsliste führt dieselbe Summe als negative Buchung.

@@ -1,29 +1,20 @@
 """Tests für `weg-konten-belege/pruefe_belege.py`. Sie halten fest, wann die Datenbasis eines Jahres als geprüft gilt."""
 import unittest
 
-from _support import Projekt
+from _support import KONTONUMMER as KONTO, Projekt, auszug, buchung
+from _support import konto as konto_json
 
 SKRIPT = "weg-konten-belege/pruefe_belege.py"
 ORDNER = "Abrechnungen/2025"
-KONTO = "DE00 0000 0000 0000 0000 00"
-
-
-def stand(betrag, vom):
-    return {"betrag": betrag, "vom": vom}
 
 
 def konto(endstand=1250.00):
     """Ein Konto mit einem Platzhalter für Auszug 1 und einem echten Auszug 2 mit einer Gutschrift über 250,00."""
-    return {"jahr": 2025, "konten": [{
-        "kontonummer": KONTO, "saldo_31_12_2024": 1000.00, "saldo_31_12_2025": endstand,
-        "auszuege": [
-            {"nr": "1/2025", "datei": None, "alter_kontostand": stand(1000.00, "2025-01-01"),
-             "neuer_kontostand": stand(1000.00, "2025-06-30"), "transaktionen": []},
-            {"nr": "2/2025", "datei": "x.pdf", "alter_kontostand": stand(1000.00, "2025-07-01"),
-             "neuer_kontostand": stand(endstand, "2025-12-31"), "transaktionen": [
-                 {"buchungstag": "2025-07-01", "wertstellung": "2025-07-01", "art": "Gutschrift",
-                  "partner": "Max Mustermann", "betrag": 250.00, "soll_haben": "haben",
-                  "verwendungszweck": "Hausgeld Musterstraße 1"}]}]}]}
+    return konto_json(
+        1000.00, endstand,
+        auszug("1/2025", 1000.00, 1000.00, "2025-01-01", "2025-06-30", datei=None),
+        auszug("2/2025", 1000.00, endstand, "2025-07-01", "2025-12-31",
+               buchung("2025-07-01", "Max Mustermann", 250.00, verwendungszweck="Hausgeld Musterstraße 1")))
 
 
 def belege(*offene_punkte):
