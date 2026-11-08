@@ -23,8 +23,8 @@ for an unchanged passage). `underline` then lists the words of the passage that 
 
 A passage starts at `text`. When it spans several lines, `end` names its end. `text` and `end` must each lie within one
 line of the PDF. When one occurs several times on the page, `match` and `end_match` (counting from 1) select the
-occurrence. Alternatively, `in` names a longer text that occurs once on the page, and `text` must start within the words
-of that text. An entry in `underline` is either just a `text` or a table with the same keys as a passage.
+occurrence. Alternatively, `in` names a longer text that occurs once on the page within one line, and `text` must
+start within the words of that text. An entry in `underline` is either just a `text` or a table with the same keys as a passage.
 
 The report items follow the format that the section "Prüfpunkte im Bericht" of the skill `weg-abrechnung-pruefen`
 defines. An item is a list entry or a checklist entry that starts with its number, or a table row with the number in the
@@ -85,8 +85,17 @@ def weight(heading, section, status=None):
 
 
 def report_items(md, sections):
-    """Reads the numbered items of the report from the given sections: number → (weight, note text)."""
+    """Reads the numbered items of the report from the given sections: number → (weight, note text).
+
+    A number that occurs twice stops the script, because the marks could not tell the two items apart.
+    """
     result = {}
+
+    def add(number, entry):
+        if number in result:
+            raise SystemExit(f"Item {number} occurs twice in the report")
+        result[number] = entry
+
     heading = ""
     number = header = None
     for line in plain(md).split("\n"):
@@ -99,7 +108,7 @@ def report_items(md, sections):
             heading, number = line[4:].strip(), None
         elif (m := ITEM.match(line)) and m[2] in sections:
             number = m[1]
-            result[number] = [weight(heading, sections[m[2]]), f"{sections[m[2]]} {number}: {m[3].strip()}"]
+            add(number, [weight(heading, sections[m[2]]), f"{sections[m[2]]} {number}: {m[3].strip()}"])
         elif line.startswith("|"):
             number = None
             row = cells(line)
@@ -107,7 +116,7 @@ def report_items(md, sections):
                 header = [cell.rstrip(".") for cell in row]
             elif not all(SEPARATOR.fullmatch(cell) for cell in row) and (item := table_item(header, row, sections)):
                 row_number, section, status, text = item
-                result[row_number] = [weight(heading, section, status), text]
+                add(row_number, [weight(heading, section, status), text])
         elif number and line.startswith("  ") and line.strip():
             result[number][1] += ("\n" if line.strip().startswith("- ") else " ") + line.strip()
         else:
@@ -119,14 +128,20 @@ def table_item(header, row, sections):
     """Number, section name, status, and note text of a table row, or None when the row is no item of `sections`.
 
     The column "Nr." holds the number, and without such a column the first column does. The first other cell names the
-    item. The status follows in brackets, and every further cell that is not empty follows with its column name.
+    item. The status follows in brackets, and every further cell that is not empty follows with its column name. An item
+    row with more cells than the header stops the script. An unescaped "|" in a cell causes that and would shift the
+    later columns, the status among them.
     """
+    cells_found = len(row)
     row = (row + [""] * len(header))[: len(header)]
     keys = [name.casefold() for name in header]
     nr = keys.index("nr") if "nr" in keys else 0
     m = re.fullmatch(NUMBER, row[nr])
     if not m or m[1] not in sections:
         return None
+    if cells_found > len(header):
+        raise SystemExit(f"Item {row[nr]}: the row has {cells_found} cells, the header {len(header)}. "
+                         'Write a "|" inside a cell as "\\|".')
     status = row[keys.index("status")] if "status" in keys else ""
     others = [(name, cell) for i, (name, cell) in enumerate(zip(header, row)) if i != nr and keys[i] != "status"]
     title = others[0][1] if others else ""
