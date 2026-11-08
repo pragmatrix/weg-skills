@@ -1,5 +1,5 @@
-// Helfer für das ETG24-Portal. Der Empfänger liefert diesen Helfer unter /etg24.js aus. Die Seite lädt ihn nach
-// jedem Neuladen erneut. Danach stehen unter window._etg bereit:
+// Helfer für das ETG24-Portal. Der Empfänger liefert diesen Helfer unter /etg24.js aus. Der Agent lädt ihn nach
+// jedem Neuladen der Seite erneut (Skill, Ablauf Schritt 2). Danach stehen unter window._etg bereit:
 //   await _etg.load()                 Liste etwa 8 Sekunden lang nachladen, gibt {zeilen, fertig} zurück
 //   _etg.rows()                       Zeilen der aktuellen Liste: {id, url, title, date, category, size, type}
 //   await _etg.save(name, text)       Text als Datei an den Empfänger schicken (z. B. die Liste als JSON)
@@ -19,7 +19,8 @@
   // Der Download-Knopf erzeugt einen Blob und klickt einen unsichtbaren Link auf dessen Adresse. Beides wird hier
   // abgefangen, damit der Blob an den Empfänger gehen kann und Chrome keinen eigenen Download startet. Die Seite kann
   // auch für andere Zwecke Blob-Adressen erzeugen. Deshalb merkt sich der Helfer zu jeder Adresse ihren Blob und nimmt
-  // nur den Blob des geklickten Links.
+  // nur den Blob des geklickten Links. Ein Eintrag fällt weg, sobald sein Link geklickt oder seine Adresse
+  // freigegeben ist, damit ein langer Download-Lauf die Blobs nicht im Speicher des Tabs sammelt.
   const blobs = new Map();
   let clicked = null;
   const createObjectURL = URL.createObjectURL;
@@ -28,10 +29,16 @@
     blobs.set(url, b);
     return url;
   };
+  const revokeObjectURL = URL.revokeObjectURL;
+  URL.revokeObjectURL = (url) => {
+    blobs.delete(url);
+    return revokeObjectURL.call(URL, url);
+  };
   const anchorClick = HTMLAnchorElement.prototype.click;
   HTMLAnchorElement.prototype.click = function () {
     if (this.href.startsWith('blob:')) {
       clicked = { blob: blobs.get(this.href), name: this.download };
+      blobs.delete(this.href);
       return;
     }
     return anchorClick.call(this);
@@ -58,13 +65,15 @@
       };
     });
 
-  // Ein Aufruf endet nach etwa 8 Sekunden, also vor dem Zeitlimit von javascript_tool. `fertig` ist wahr, wenn die
-  // Zahl der Zeilen über drei Prüfungen im Abstand von einer Sekunde gleich blieb. Sonst ruft der Agent load() erneut.
+  // Ein Aufruf endet nach höchstens etwa 8 Sekunden, also vor den etwa 10 Sekunden, nach denen javascript_tool oft
+  // abbricht (Skill, Abschnitt Browser). Die Schleife beginnt deshalb keine Wartesekunde mehr, die nach dem Ende läge.
+  // `fertig` ist wahr, wenn die Zahl der Zeilen über drei Prüfungen im Abstand von einer Sekunde gleich blieb. Sonst
+  // ruft der Agent load() erneut.
   async function load() {
     const end = Date.now() + 8000;
     let before = titles().length;
     let stable = 0;
-    while (Date.now() < end) {
+    while (Date.now() + 1000 <= end) {
       window.scrollTo(0, document.body.scrollHeight);
       titles().pop()?.scrollIntoView();
       await sleep(1000);

@@ -19,6 +19,11 @@ Tabelle `| Kategorie | Titel im Portal | Datum | Größe | Ablage | Portal |`.
 Fehlt die Abgleichliste, legst du sie in diesem Aufbau an. Die Adresse des Objekts und die IDs der Einheiten liest du
 aus der Adresszeile, wenn der Nutzer angemeldet ist.
 
+Ein Datum ohne Jahr, etwa „18. Dezember“, rechnet `etg24_abgleich.py` ins Vorjahr, wenn es im Jahr des Exports nach
+dem Exporttag läge. Eine Zeile der Abgleichliste, die ein solches Datum noch mit dem Jahr des Exports trägt, passt
+deshalb nicht mehr. Ihr Dokument erscheint in Schritt 4 als neu. Dann korrigierst du das Jahr in der vorhandenen Zeile
+und legst keine zweite an.
+
 ## Portal
 
 - Pfade unter der Adresse des Objekts:
@@ -172,8 +177,8 @@ der Skill `weg-eigentuemer-ablage` ein (Abschnitt Neues Projekt einrichten). Die
    `weg-eigentuemer-ablage` ab. Fertig ist der Schritt, wenn jeder Download entweder schon in der Ablage lag oder
    abgelegt ist und die Spalte „Ablage“ seiner Zeile auf die Datei verlinkt.
 8. `python3 <Skill-Ordner>/etg24_link.py fill ZIELORDNER/*.json` trägt die Direktlinks in die Spalte „Portal“ ein.
-   Fertig ist der Schritt, wenn das Skript ohne Fehler endet und jede Zeile, die es „ohne Direktlink“ zählt, zu einem
-   Dokument gehört, das in keinem Export steht.
+   Fertig ist der Schritt, wenn das Skript ohne Fehler endet und jede Zeile, die es unter „ohne Direktlink“ nennt, zu
+   einem Dokument gehört, das in keinem Export steht.
 9. Abgeschlossen ist der Durchgang, wenn jede Zeile aus Schritt 4 in der Abgleichliste steht, mit Link oder Grund
    und mit Direktlink, und `just qa` mit Exit-Code 0 endet. Danach den Empfänger beenden: `kill PID` mit der PID aus
    Schritt 1.

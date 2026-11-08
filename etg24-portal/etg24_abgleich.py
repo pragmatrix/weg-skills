@@ -22,7 +22,8 @@ jedes Datum als TT.MM.JJJJ aus. Ein Datum ohne Jahr, das nach dem Exporttag läg
 Format bricht das Skript ab, damit kein Dokument mit falschem Datum als neu gilt.
 
 Ein wiederholter Export bekommt vom Empfänger einen Zähler im Namen, etwa `objekt (2).json`. Der Zähler zählt nicht
-zum Bereich.
+zum Bereich. Exporte desselben Bereichs ergeben einen gemeinsamen Abschnitt der Ausgabe, in dem jedes Dokument einmal
+steht.
 """
 from datetime import date, timedelta
 from pathlib import Path
@@ -70,6 +71,8 @@ def full_date(text, exported):
                 continue
             if day <= exported:
                 return day.strftime("%d.%m.%Y")
+        sys.exit(f"Datum im Export „{text}“ liegt weder im Jahr des Exports noch im Vorjahr am oder vor dem Exporttag "
+                 f"{exported.strftime('%d.%m.%Y')}.")
     sys.exit(f"Unbekanntes Datumsformat im Export: „{text}“. Erwartet TT.MM.JJJJ, „D. Monat“, heute oder gestern.")
 
 
@@ -79,6 +82,8 @@ def table_rows(lines):
     Eine Dokumententabelle beginnt mit der Kopfzeile `| Kategorie …` unter einem Abschnitt `## <Bereich>`. Andere
     Tabellen zählen nicht. Die Zellen bleiben maskiert (`\\|`), damit eine Zeile unverändert zurückgeschrieben werden
     kann. Eine Kopfzeile mit anderen Spalten als `COLUMNS` und eine Zeile mit einer anderen Zahl von Zellen brechen ab.
+    Die Trennzeile unter der Kopfzeile besteht nur aus Zellen mit `-` und `:`. Eine Datenzeile mit leerer erster Zelle,
+    etwa ein Dokument ohne Kategorie, ist keine Trennzeile.
     """
     section, in_table = None, False
     for n, line in enumerate(lines):
@@ -93,7 +98,7 @@ def table_rows(lines):
             in_table = True
         elif in_table:
             c = cells(line)
-            if set(c[0]) <= {"-", ":"}:
+            if c and all(x and set(x) <= {"-", ":"} for x in c):
                 continue
             if len(c) != len(COLUMNS):
                 sys.exit(f"{where}: {len(c)} statt {len(COLUMNS)} Zellen")
@@ -128,20 +133,23 @@ def main():
     for rel in files(ignore_patterns()):
         by_size.setdefault(portal_size((ROOT / rel).stat().st_size), []).append(rel)
 
+    # Neue Zeilen je Bereich, nach Schlüssel. Ein Dokument aus mehreren Exporten desselben Bereichs steht so einmal da.
+    new = {}
     for path in map(Path, sys.argv[1:]):
         section = section_name(path)
         exported = date.fromtimestamp(path.stat().st_mtime)
-        new = []
+        lines = new.setdefault(section, {})
         for row in json.loads(path.read_text(encoding="utf-8")):
             key = (section, row["category"], row["title"], full_date(row["date"], exported))
-            if key not in keys:
+            if key not in keys and key not in lines:
                 same = [c for c in by_size.get(row["size"], []) if c.suffix.lower() == "." + row["type"]]
                 candidates = ", ".join(f"`{c.as_posix()}`" for c in same) or "–"
                 portal = f"[öffnen](<{row['url']}>)" if row.get("url") else ""
                 values = [*key[1:], row["size"], candidates, portal]
-                new.append("| " + " | ".join(v.replace("|", "\\|") for v in values) + " |")
-        print(f"## {section}: {len(new)} neu")
-        for line in new:
+                lines[key] = "| " + " | ".join(v.replace("|", "\\|") for v in values) + " |"
+    for section, lines in new.items():
+        print(f"## {section}: {len(lines)} neu")
+        for line in lines.values():
             print(line)
     return 0
 

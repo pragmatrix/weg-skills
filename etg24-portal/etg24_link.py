@@ -46,16 +46,20 @@ def fill(exports):
                 urls[(section, row["category"], row["title"], full_date(row["date"], exported))] = row["url"]
 
     lines = ABGLEICH.read_text(encoding="utf-8").split("\n")
-    filled = missing = 0
+    filled, missing = 0, []
     for n, section, c in list(table_rows(lines)):
         key = (section, unescape(c[0]), unescape(c[1]), c[2])
         if key in urls:
             c[5] = f"[öffnen](<{urls[key]}>)"
             filled += 1
-        missing += not c[5]
+        if not c[5]:
+            missing.append(f"  {section} | {unescape(c[1])} | {c[2]}")
         lines[n] = row_line(c)
     ABGLEICH.write_text("\n".join(lines), encoding="utf-8")
-    print(f"etg24_link: {filled} Direktlink(s) eingetragen, {missing} Zeile(n) ohne Direktlink")
+    print(f"etg24_link: {filled} Direktlink(s) eingetragen, {len(missing)} Zeile(n) ohne Direktlink")
+    # Jede Zeile ohne Direktlink einzeln, damit der Agent prüfen kann, ob ihr Dokument in keinem Export steht.
+    for line in missing:
+        print(line)
 
 
 def find(names, open_it):
@@ -66,7 +70,8 @@ def find(names, open_it):
         for _, section, c in rows:
             ablage = [os.path.normpath(Path(ABGLEICH.parent, urllib.parse.unquote(t)).resolve().relative_to(ROOT))
                       for t in LINK.findall(c[4])]
-            url = LINK.search(c[5]).group(1) if LINK.search(c[5]) else None
+            m = LINK.search(c[5])
+            url = m.group(1) if m else None
             if target in ablage and url:
                 found += 1
                 print(f"{name}: {url}  ({section}, {c[1]}, {c[2]})")
