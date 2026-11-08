@@ -55,8 +55,8 @@ To update, run `git pull` in the clone.
 ## Tests
 
 The tests in `tests/` run from the repository root with `python3 -m unittest discover -s tests`. Tests that need
-`typst` or PyMuPDF are skipped without them, and
-`uv run --with pymupdf python -m unittest discover -s tests` runs them all when `typst` is installed.
+`typst`, Poppler (`pdftotext`, `pdfinfo`) or PyMuPDF are skipped without them, and the run still ends with "OK".
+`uv run --with pymupdf python -m unittest discover -s tests` runs them all when `typst` and Poppler are installed.
 
 ## License
 
