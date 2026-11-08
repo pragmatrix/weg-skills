@@ -110,7 +110,9 @@ Fristen und Rechte:
 | Müllgebühren | ja | § 2 Nr. 8 |
 | Gartenpflege, nur die gärtnerische Pflege | ja | § 2 Nr. 10 |
 | Instandhaltung, Reparaturen, Schadenssanierung | nein | Vermietersache (§ 535 BGB) |
-| Baumfällung, Erneuerung von Pflanzen und Gehölzen | ja | § 2 Nr. 10, für das Fällen eines kranken Baums BGH, Urteil vom 10.11.2021, VIII ZR 107/20 |
+| Baumfällung eines kranken oder nicht mehr standsicheren Baums, Erneuerung von Pflanzen und Gehölzen | ja | § 2 Nr. 10, für das Fällen eines kranken Baums BGH, Urteil vom 10.11.2021, VIII ZR 107/20 |
+| Baumfällung für einen Umbau oder eine Umgestaltung | nein | keine Gartenpflege, sondern Aufwand des Eigentümers |
+| Baumfällung mit unklarem Anlass | vorläufig ja | `umlagefaehig: true` mit `warnung` und Folgeprüfung, den Anlass klärt die Verwaltung |
 | Neuanlage oder Umgestaltung des Gartens | nein | keine Pflege, sondern Herstellung oder Modernisierung |
 | Verwaltervergütung, Bankspesen, Porto | nein | Verwaltungskosten |
 | Zuführung zur Rücklage, Sonderumlage | nein | Aufwand des Eigentümers |
@@ -182,7 +184,8 @@ bricht sie mit der Liste aller Befunde ab, und es entsteht kein PDF.
 
 Das Rezept liegt in `nebenkosten.just` neben dieser Datei und ruft `scripts/nebenkosten.sh` auf. Die `justfile` des
 Projekts bindet es ein mit `import '.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'`. Es braucht `typst`
-ab Version 0.15, `python3` und `pdfunite` aus Poppler.
+ab Version 0.15, `python3` und `pdfunite` aus Poppler. Die Vorlage setzt Arial. Fehlt die Schrift, nimmt Typst
+mit einer Warnung eine eigene.
 
 - `just nebenkosten JAHR` liest die eine Datei `nebenkostenabrechnung_JAHR_*.json` in `Vermietung/JAHR/`, prüft sie
   und schreibt `tmp/Nebenkostenabrechnung JAHR.pdf`. Die Dateien unter `anlagen` hängt es in dieser Reihenfolge an
