@@ -1,6 +1,7 @@
 """Tests für `weg-abrechnung-pruefen/vertragsvergleich.py`. Sie prüfen die Textfunktionen ohne PDF.
 
-Eine Fassung ist hier eine Liste von Seiten, jede eine Liste ihrer Zeilen, so wie `pages` sie aus `pdftotext` liest.
+Eine Fassung ist hier eine Liste von Seiten, jede eine Liste ihrer Zeilen, so wie `seiten` sie aus dem Text von
+`pdftotext` macht.
 """
 import unittest
 
@@ -26,6 +27,13 @@ class KopfFussTest(unittest.TestCase):
         self.assertIn("inklusive", " ".join(vv.sentences(alt, rand)))
         self.assertIn("gesondert", " ".join(vv.sentences(neu, rand)))
         self.assertNotIn("Musterverwaltung GmbH", " ".join(vv.sentences(neu, rand)))
+
+
+class SeitenzahlTest(unittest.TestCase):
+    def test_zahl_mitten_auf_der_seite_ist_eine_tabellenzelle(self):
+        zeilen = ["Verwaltervertrag Musterstraße 1", "Anlage", "Leistung", "Anzahl Begehungen", "12",
+                  "Stundensatz", "Ende der Seite", "Musterverwaltung GmbH", "7"]
+        self.assertEqual(vv.seiten("\n".join(zeilen)), [zeilen[:-1]])
 
 
 class EntsilbenTest(unittest.TestCase):

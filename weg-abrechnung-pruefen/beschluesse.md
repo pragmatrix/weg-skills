@@ -29,4 +29,6 @@ Schriftverkehr in `Verwaltung/`, Vorgänge in `Vorgänge/` (Übersicht `Vorgäng
 6. **Fristen:** Anfechtungsfrist eines fehlerhaften Beschlusses (§ 45 WEG: Klage binnen eines Monats, Begründung
    binnen zwei Monaten nach Beschlussfassung) und Fälligkeiten, die aus Beschlüssen folgen, mit Datum nennen.
 
-Der Bericht enthält eine Tabelle mit allen Beschlüssen: Nr., TOP, Kurzinhalt, erwartete Umsetzung, Status, Beleg.
+Der Bericht enthält eine Tabelle mit allen Beschlüssen: Nr., Kurzinhalt, TOP, erwartete Umsetzung, Status, Beleg.
+„Nr.“ ist die Nummer des Prüfpunkts im Bericht (Abschnitt „Prüfpunkte im Bericht“ in `SKILL.md`). Die Nummer eines
+Beschlusses in der Beschluss-Sammlung steht, wenn nötig, in einer eigenen Spalte hinter „TOP“.

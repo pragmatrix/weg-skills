@@ -11,8 +11,9 @@ mit `pdftotext` ohne `-layout`, also Spalte für Spalte in Lesereihenfolge.
 
 Vor dem Vergleich entfernt es Kopf- und Fußzeilen, Seitenzahlen und Silbentrennungen. Eine Kopf- oder Fußzeile ist
 eine Zeile unter den ersten oder letzten drei Zeilen einer Seite, die dort auf mindestens drei Seiten gleich vorkommt.
-Gezählt werden die Seiten beider Fassungen zusammen, damit beide dieselben Zeilen verlieren. Kurze Tabellenzellen wie
-„inklusive“ in der Mitte einer Seite bleiben so erhalten. Eine Silbentrennung wird nur am Zeilenende aufgehoben. Folgt
+Gezählt werden die Seiten beider Fassungen zusammen, damit beide dieselben Zeilen verlieren. Eine Seitenzahl ist eine
+Zahl mit höchstens drei Ziffern allein in einer dieser Randzeilen. Kurze Tabellenzellen wie „inklusive“ oder „12“ in
+der Mitte einer Seite bleiben so erhalten. Eine Silbentrennung wird nur am Zeilenende aufgehoben. Folgt
 auf den Bindestrich ein Wort wie „und“ oder „oder“, ist er ein Ergänzungsstrich und bleibt stehen („Grund- und
 besondere Leistungen“). Dann teilt das Skript den Text in Sätze und vergleicht die Satzfolgen.
 
@@ -35,12 +36,24 @@ BINDEWOERTER = {"und", "oder", "bis", "sowie", "bzw."}
 
 
 def pages(pdf):
-    """Die Seiten des PDFs, jede als Liste ihrer nicht leeren Zeilen ohne Seitenzahlen und Aufzählungszeichen."""
-    text = subprocess.run(["pdftotext", pdf, "-"], capture_output=True, check=True, text=True).stdout
-    return [
-        [line for line in map(str.strip, page.split("\n")) if line not in NOISE and not re.fullmatch(r"\d{1,3}", line)]
-        for page in text.split("\f")
-    ]
+    """Die Seiten des PDFs, gelesen mit `pdftotext` und aufbereitet von `seiten`."""
+    return seiten(subprocess.run(["pdftotext", pdf, "-"], capture_output=True, check=True, text=True).stdout)
+
+
+def seiten(text):
+    """Die Seiten eines `pdftotext`-Texts, jede als Liste ihrer nicht leeren Zeilen ohne Aufzählungszeichen.
+
+    Eine Zeile aus einer Zahl mit höchstens drei Ziffern ist eine Seitenzahl, wenn sie unter den ersten oder letzten
+    `RAND` Zeilen steht. Mitten auf der Seite ist sie eine Tabellenzelle und bleibt.
+    """
+    result = []
+    for page in text.split("\f"):
+        lines = [line for line in map(str.strip, page.split("\n")) if line not in NOISE]
+        result.append([
+            line for i, line in enumerate(lines)
+            if not (re.fullmatch(r"\d{1,3}", line) and (i < RAND or i >= len(lines) - RAND))
+        ])
+    return result
 
 
 def kopf_fuss(*fassungen):
@@ -54,7 +67,9 @@ def entsilben(lines):
     result = []
     for line in lines:
         getrennt = result and re.search(r"\w-$", result[-1])
-        if getrennt and re.match(r"[a-zäöüß]", line) and line.split(maxsplit=1)[0] not in BINDEWOERTER:
+        # Ein Satzzeichen hinter dem ersten Wort zählt nicht, sonst wäre „und,“ kein Bindewort.
+        erstes = line.split(maxsplit=1)[0].rstrip(",;:")
+        if getrennt and re.match(r"[a-zäöüß]", line) and erstes not in BINDEWOERTER:
             result[-1] = result[-1][:-1] + line
         else:
             result.append(line)
