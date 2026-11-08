@@ -33,7 +33,8 @@ Unterschrift braucht die Abrechnung nicht, die Textform genügt (§ 126b BGB).
    und Erhaltung. Jede Position wird einzeln auf Umlagefähigkeit geprüft (§ 556 BGB mit BetrKV).
 2. **Jede Position hat eine Herkunft.** Das Feld `betrkv` nennt die Nummer der BetrKV. Das Feld `fundstelle` (siehe
    `schema.md` im Skill `weg-konten-belege`) nennt die Stelle im Beleg, oder `berechnung` nennt den Rechenweg.
-   `just nebenkosten` bricht bei jeder Position ab, der eines davon fehlt.
+   Jede umlagefähige Position braucht `betrkv` und dazu `fundstelle` oder `berechnung`, sonst bricht
+   `just nebenkosten` ab.
 3. **Nicht umlagefähige Positionen werden dokumentiert**, mit Begründung unter `nicht_aufgenommen`.
 4. **Platzhalter tragen eine `warnung`:** ein Wert ohne Beleg im Jahr, etwa Grundsteuer ohne Bescheid oder CO₂ ohne
    Literangabe. Jeder Platzhalter steht auch unter `folgepruefungen`.
@@ -169,17 +170,19 @@ Die Abrechnung ist ein Brief nach DIN 5008 Form B. Die Typst-Vorlage `nebenkoste
 setzt ihn aus der Datenbasis. Sie gilt für jedes Jahr und jedes Mietverhältnis und enthält keine Angaben zu einem
 Objekt. Anschrift und Rücksendeangabe sitzen im Fenster eines DL- oder C5/6-Kuverts, dazu kommen Falz- und Lochmarken.
 Die Positionstabelle trägt die Mindestangaben in den Spalten Kostenart, Verteilerschlüssel, Gesamtkosten und Ihr
-Anteil. Darunter folgen Summe, Vorauszahlung und Ergebnis, dann der `verteilvermerk`, die Angabe nach § 35a EStG und der Gruß. Ist das Ergebnis
-negativ, heißt die Zeile „Ihr Guthaben“ und zeigt den Betrag positiv. Solange eine Position eine `warnung` trägt,
-steht „ENTWURF“ hinter dem Text.
+Anteil. Darunter folgen Summe, Vorauszahlung und Ergebnis, dann der `verteilvermerk`, die Angabe nach § 35a EStG
+und der Gruß. Ist das Ergebnis negativ, heißt die Zeile „Ihr Guthaben“ und zeigt den Betrag positiv. Solange eine
+Position eine `warnung` trägt, steht „ENTWURF“ hinter dem Text.
 
 Die Vorlage rechnet nichts neu, sie übernimmt Beträge und Summen aus der Datenbasis. Vorher prüft sie die
-Mindestangaben, die Herkunft jeder Position und `datum_abrechnung` nach dem Abrechnungsjahr. Außerdem prüft sie, dass
-die Positionen die Summe ergeben und Summe minus Vorauszahlung das Ergebnis. Bei einem Befund bricht sie mit der Liste
-aller Befunde ab, und es entsteht kein PDF.
+Mindestangaben, die Herkunft jeder umlagefähigen Position und `umlagefaehig` als `true` oder `false` an jeder
+Position. Sie prüft auch, dass der Abrechnungszeitraum im Abrechnungsjahr liegt und `datum_abrechnung` danach.
+Außerdem prüft sie, dass die Positionen die Summe ergeben und Summe minus Vorauszahlung das Ergebnis. Bei einem Befund
+bricht sie mit der Liste aller Befunde ab, und es entsteht kein PDF.
 
-Das Rezept liegt in `nebenkosten.just` neben dieser Datei. Die `justfile` des Projekts bindet es ein mit
-`import '.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'`. Es braucht `typst`, `python3` und `pdfunite` aus Poppler.
+Das Rezept liegt in `nebenkosten.just` neben dieser Datei und ruft `scripts/nebenkosten.sh` auf. Die `justfile` des
+Projekts bindet es ein mit `import '.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'`. Es braucht `typst`
+ab Version 0.15, `python3` und `pdfunite` aus Poppler.
 
 - `just nebenkosten JAHR` liest die eine Datei `nebenkostenabrechnung_JAHR_*.json` in `Vermietung/JAHR/`, prüft sie
   und schreibt `tmp/Nebenkostenabrechnung JAHR.pdf`. Die Dateien unter `anlagen` hängt es in dieser Reihenfolge an
@@ -212,7 +215,7 @@ Das Rezept liegt in `nebenkosten.just` neben dieser Datei. Die `justfile` des Pr
    | `mieterin.wohnung` | Lage der Wohnung für den Betreff. Ein Zusatz in Klammern erscheint dort nicht. | „EG links (Einheit 3, 250/1000 MEA)“ |
    | `mieterin.mietvertrag_vom` | optional, Datum des Mietvertrags für den Betreff | `2020-04-01` |
    | `mieterin.anrede` | optional, die ganze Anrede mit Komma. Ohne das Feld steht „Sehr geehrte Damen und Herren,“. | „Sehr geehrte Frau Beispiel,“ |
-   | `abrechnungszeitraum.von`, `abrechnungszeitraum.bis` | Abrechnungszeitraum | `2025-01-01`, `2025-12-31` |
+   | `abrechnungszeitraum.von`, `abrechnungszeitraum.bis` | Abrechnungszeitraum im Abrechnungsjahr, bei einem Mieterwechsel der Teil des Jahres | `2025-01-01`, `2025-12-31` |
    | `anlagen` | optional, Liste der Anlagen mit `bezeichnung` für den Anlagenvermerk und `datei`, dem Pfad einer PDF-Datei relativ zum Projektordner | `[{"bezeichnung": "Heizkostenabrechnung 2025", "datei": "Abrechnungen/2025/Heizkostenabrechnung.pdf"}]` |
    | `positionen[].steuer_35a` | optional, je Position: `art` („haushaltsnah“ oder „handwerker“), `betrag` (Arbeitskosten im Anteil des Mieters) und `fundstelle` oder `berechnung` | `{"art": "handwerker", "betrag": 12.50, "fundstelle": "Abrechnung.pdf, S. 7"}` |
 

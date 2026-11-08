@@ -29,7 +29,7 @@ The skills also need command-line tools:
 
 - `just`, `git`, `python3` (3.11 or newer) and Poppler, optionally Tesseract for scans: all skills. The project's `justfile` imports each skill's `.just` file.
 - `uv`, `mutool` and `magick`: `pdf-annotate`
-- `typst`: `weg-vermieter-nebenkosten`
+- `typst` (0.15 or newer): `weg-vermieter-nebenkosten`
 - the Claude in Chrome extension: `etg24-portal`
 
 ## Installation

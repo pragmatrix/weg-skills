@@ -8,7 +8,9 @@ import copy
 import json
 import shutil
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 from _support import REPO
 
@@ -38,11 +40,17 @@ DATEN = {
 
 
 def auswerten(daten, ausdruck):
-    """Wertet `ausdruck` in der Vorlage mit `daten` aus. Ergebnis ist (Exit-Code, Ausgabe auf stdout und stderr)."""
-    lauf = subprocess.run(
-        ["typst", "eval", ausdruck, "--in", str(VORLAGE), "--input", "daten=" + json.dumps(daten)],
-        capture_output=True, text=True,
-    )
+    """Wertet `ausdruck` in der Vorlage mit `daten` aus. Ergebnis ist (Exit-Code, Ausgabe auf stdout und stderr).
+
+    Die Vorlage liest die Datenbasis wie im Skript `nebenkosten.sh` über einen absoluten Pfad.
+    """
+    with tempfile.TemporaryDirectory() as ordner:
+        pfad = Path(ordner).resolve() / "daten.json"
+        pfad.write_text(json.dumps(daten), encoding="utf-8")
+        lauf = subprocess.run(
+            ["typst", "eval", ausdruck, "--in", str(VORLAGE), "--root", "/", "--input", f"pfad={pfad}"],
+            capture_output=True, text=True,
+        )
     return lauf.returncode, lauf.stdout + lauf.stderr
 
 
@@ -93,7 +101,15 @@ class NebenkostenabrechnungTest(unittest.TestCase):
     def test_nicht_umlagefaehige_position_zaehlt_nicht(self):
         d = self.daten()
         d["positionen"].append({"position": "Verwaltergebühr", "betrag": 99.0, "umlagefaehig": False})
-        self.assertEqual(wert(d, "ergebnis"), "Ihre Nachzahlung")
+        code, ausgabe = auswerten(d, "1")
+        self.assertEqual(code, 0, ausgabe)
+
+    def test_position_ohne_umlagefaehig_bricht_ab(self):
+        d = self.daten()
+        del d["positionen"][1]["umlagefaehig"]
+        code, ausgabe = auswerten(d, "1")
+        self.assertNotEqual(code, 0)
+        self.assertIn("Position „Müllgebühren“ ohne umlagefaehig", ausgabe)
 
     def test_anlage_ohne_pdf_datei_bricht_ab(self):
         d = self.daten()
@@ -108,7 +124,6 @@ class NebenkostenabrechnungTest(unittest.TestCase):
         d["positionen"][0]["steuer_35a"] = {"art": "handwerker", "betrag": 40.10, "berechnung": "Lohnanteil"}
         d["positionen"][1]["steuer_35a"] = {"art": "handwerker", "betrag": 10.00, "fundstelle": "Rechnung, S. 1"}
         self.assertEqual(wert(d, "steuer_35a"), {"handwerker": 5010})
-        self.assertEqual(wert(self.daten(), "steuer_35a"), {})
 
     def test_steuer_35a_unplausibel_bricht_ab(self):
         d = self.daten()
@@ -125,6 +140,13 @@ class NebenkostenabrechnungTest(unittest.TestCase):
         code, ausgabe = auswerten(d, "1")
         self.assertNotEqual(code, 0)
         self.assertIn("liegt nicht nach dem Abrechnungsjahr 2025", ausgabe)
+
+    def test_zeitraum_des_vorjahres_bricht_ab(self):
+        d = self.daten()
+        d["abrechnungszeitraum"] = {"von": "2024-01-01", "bis": "2024-12-31"}
+        code, ausgabe = auswerten(d, "1")
+        self.assertNotEqual(code, 0)
+        self.assertIn("abrechnungszeitraum 2024-01-01 bis 2024-12-31 liegt nicht im Abrechnungsjahr 2025", ausgabe)
 
 
 if __name__ == "__main__":

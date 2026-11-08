@@ -1,18 +1,19 @@
 // Nebenkostenabrechnung für den Mieter als Brief nach DIN 5008 Form B.
 //
 // Die Vorlage gilt für jedes Jahr und jedes Mietverhältnis. Alle Angaben kommen aus der Datenbasis
-// `nebenkostenabrechnung_JJJJ_<Mieter>.json` (SKILL.md, Schritt 4). Das Rezept `just nebenkosten JAHR` übergibt
-// ihren Inhalt als Eingabe `daten`:
+// `nebenkostenabrechnung_JJJJ_<Mieter>.json` (SKILL.md, Schritt 4). Das Skript `scripts/nebenkosten.sh` übergibt
+// ihren absoluten Pfad als Eingabe `pfad`. Die Wurzel `/` erlaubt Typst, eine Datei außerhalb dieses Ordners zu lesen:
 //
-//   typst compile --input daten="$(cat <Datenbasis>)" nebenkostenabrechnung.typ <Ziel.pdf>
+//   typst compile --root / --input pfad=<absoluter Pfad der Datenbasis> nebenkostenabrechnung.typ <Ziel.pdf>
 //
 // Die Vorlage rechnet nichts neu. Sie übernimmt Beträge und Summen aus der Datenbasis und prüft vorher die
 // Mindestangaben und die Summen. Fehlt eine Angabe oder passt eine Summe nicht, bricht die Übersetzung mit einer
 // Liste aller Befunde ab, und es entsteht kein PDF.
 
-#let eingabe = sys.inputs.at("daten", default: none)
-#assert(eingabe != none, message: "Die Datenbasis fehlt. Aufruf mit --input daten=<Inhalt der JSON-Datei>.")
-#let daten = json(bytes(eingabe))
+#let pfad = sys.inputs.at("pfad", default: none)
+#assert(pfad != none, message: "Die Datenbasis fehlt. Aufruf mit --root / --input pfad=<absoluter Pfad>.")
+#let daten = json(pfad)
+#assert(type(daten) == dictionary, message: "Die Datenbasis ist kein JSON-Objekt.")
 
 // ---------------------------------------------------------------------------------------------------------
 // Formatierung
@@ -48,10 +49,29 @@
 #let wert(pfad) = pfad.fold(daten, (d, k) => if type(d) == dictionary { d.at(k, default: none) } else { none })
 #let leer(v) = v == none or v == ""
 #let zahl(v) = type(v) in (int, float)
+// Ein Text, der im Brief erscheint, ist eine nicht leere Zeichenkette.
+#let text_ok(v) = type(v) == str and v.trim() != ""
+// Ein Datum hat die Form JJJJ-MM-TT. Bei dieser Form entspricht die Reihenfolge der Zeichenketten der zeitlichen.
+#let iso(v) = type(v) == str and v.match(regex("^\d{4}-\d{2}-\d{2}$")) != none
 
 #let jahr = daten.at("jahr", default: none)
-#let positionen = daten.at("positionen", default: ()).filter(p => p.at("umlagefaehig", default: false))
-#let summen = daten.at("summen", default: (:))
+#let jahr_ok = type(jahr) == int
+// Alle Positionen, auch die nicht umlagefähigen. Ein Eintrag, der kein Objekt ist, steht als Befund in `befunde`.
+#let alle_positionen = {
+  let liste = daten.at("positionen", default: ())
+  if type(liste) == array { liste.filter(p => type(p) == dictionary) } else { () }
+}
+// Nur `umlagefaehig: true` kommt in den Brief. Fehlt das Feld, ist das ein Befund, damit keine Position
+// stillschweigend wegfällt.
+#let positionen = alle_positionen.filter(p => p.at("umlagefaehig", default: none) == true)
+#let summen = {
+  let s = daten.at("summen", default: (:))
+  if type(s) == dictionary { s } else { (:) }
+}
+#let anlagen = {
+  let a = daten.at("anlagen", default: ())
+  if type(a) == array { a } else { () }
+}
 
 // Arten begünstigter Leistungen nach § 35a EStG, die eine Position unter `steuer_35a.art` nennen kann, mit ihrem
 // Text im Brief.
@@ -62,46 +82,71 @@
 
 #let befunde = {
   let b = ()
-  if not zahl(jahr) { b.push("jahr fehlt") }
+  if not jahr_ok { b.push("jahr fehlt oder ist keine ganze Zahl") }
 
   // Angaben für Briefkopf und Betreff.
   for pfad in (
     ("vermieter", "name"), ("vermieter", "adresse"),
     ("mieterin", "name"), ("mieterin", "adresse"), ("mieterin", "wohnung"),
-    ("abrechnungszeitraum", "von"), ("abrechnungszeitraum", "bis"),
   ) {
-    if leer(wert(pfad)) { b.push(pfad.join(".") + " fehlt") }
+    if not text_ok(wert(pfad)) { b.push(pfad.join(".") + " fehlt oder ist kein Text") }
+  }
+  let anrede = wert(("mieterin", "anrede"))
+  if anrede != none and not text_ok(anrede) { b.push("mieterin.anrede ist kein Text") }
+  let vertrag = wert(("mieterin", "mietvertrag_vom"))
+  if vertrag != none and not iso(vertrag) { b.push("mieterin.mietvertrag_vom hat nicht die Form JJJJ-MM-TT") }
+
+  // Der Abrechnungszeitraum liegt im Abrechnungsjahr, denn die Kosten stammen aus der Einzelabrechnung der WEG für
+  // dieses Kalenderjahr. Ein Mieterwechsel ergibt einen kürzeren Zeitraum im selben Jahr.
+  let von = wert(("abrechnungszeitraum", "von"))
+  let bis = wert(("abrechnungszeitraum", "bis"))
+  if not iso(von) or not iso(bis) {
+    b.push("abrechnungszeitraum.von oder .bis fehlt oder hat nicht die Form JJJJ-MM-TT")
+  } else if jahr_ok and not (str(jahr) + "-01-01" <= von and von <= bis and bis <= str(jahr) + "-12-31") {
+    b.push("abrechnungszeitraum " + von + " bis " + bis + " liegt nicht im Abrechnungsjahr " + str(jahr))
   }
 
-  // Eine Abrechnung entsteht erst nach dem Abrechnungsjahr. Bei Daten der Form JJJJ-MM-TT entspricht die
-  // Reihenfolge der Zeichenketten der zeitlichen.
+  // Eine Abrechnung entsteht erst nach dem Abrechnungsjahr.
   let d = daten.at("datum_abrechnung", default: none)
-  if type(d) != str or d.match(regex("^\d{4}-\d{2}-\d{2}$")) == none {
+  if not iso(d) {
     b.push("datum_abrechnung fehlt oder hat nicht die Form JJJJ-MM-TT")
-  } else if zahl(jahr) and d <= str(jahr) + "-12-31" {
+  } else if jahr_ok and d <= str(jahr) + "-12-31" {
     b.push("datum_abrechnung " + d + " liegt nicht nach dem Abrechnungsjahr " + str(jahr))
+  }
+
+  // Jede Position sagt ausdrücklich, ob sie umlagefähig ist.
+  let liste = daten.at("positionen", default: none)
+  if type(liste) != array { b.push("positionen fehlt oder ist keine Liste") } else {
+    for (i, p) in liste.enumerate() {
+      if type(p) != dictionary {
+        b.push("positionen[" + str(i) + "] ist kein Objekt")
+      } else if type(p.at("umlagefaehig", default: none)) != bool {
+        b.push("Position „" + str(p.at("position", default: "?")) + "“ ohne umlagefaehig (true oder false)")
+      }
+    }
   }
 
   // Herkunft und Mindestangaben jeder umlagefähigen Position (SKILL.md, Gesetzliche Anforderungen).
   if positionen.len() == 0 { b.push("keine umlagefähige Position") }
   for p in positionen {
     let name = "Position „" + str(p.at("position", default: "?")) + "“"
-    if leer(p.at("position", default: none)) { b.push("Position ohne position (Name der Kostenart)") }
+    if not text_ok(p.at("position", default: none)) { b.push("Position ohne position (Name der Kostenart)") }
     if not zahl(p.at("betrag", default: none)) { b.push(name + " ohne betrag") }
     if leer(p.at("betrkv", default: none)) { b.push(name + " ohne betrkv") }
     if leer(p.at("fundstelle", default: none)) and leer(p.at("berechnung", default: none)) {
       b.push(name + " ohne fundstelle oder berechnung")
     }
     if not zahl(p.at("gesamtkosten", default: none)) { b.push(name + " ohne gesamtkosten") }
-    if leer(p.at("schluessel", default: none)) { b.push(name + " ohne schluessel") }
+    if not text_ok(p.at("schluessel", default: none)) { b.push(name + " ohne schluessel") }
   }
-  if leer(daten.at("verteilvermerk", default: none)) {
+  if not text_ok(daten.at("verteilvermerk", default: none)) {
     b.push("verteilvermerk fehlt (Erläuterung der Verteilerschlüssel für den Mieter)")
   }
 
-  // Anlagen nennt der Brief mit ihrer Bezeichnung. Das Rezept hängt die Datei an das PDF an.
-  for a in daten.at("anlagen", default: ()) {
-    if type(a) != dictionary or leer(a.at("bezeichnung", default: none)) {
+  // Anlagen nennt der Brief mit ihrer Bezeichnung. Das Skript hängt die Datei an das PDF an.
+  if type(daten.at("anlagen", default: ())) != array { b.push("anlagen ist keine Liste") }
+  for a in anlagen {
+    if type(a) != dictionary or not text_ok(a.at("bezeichnung", default: none)) {
       b.push("Anlage ohne bezeichnung")
     } else if type(a.at("datei", default: none)) != str or not lower(a.datei).ends-with(".pdf") {
       b.push("Anlage „" + a.bezeichnung + "“ ohne datei (Pfad einer PDF-Datei im Projektordner)")
@@ -133,9 +178,6 @@
   }
 
   // Summen: Die Positionen ergeben die Summe, Summe minus Vorauszahlung ergibt das Ergebnis.
-  if zahl(jahr) and ("vorauszahlung_" + str(jahr)) in summen {
-    b.push("summen.vorauszahlung_" + str(jahr) + " ist der alte Schlüssel, umbenennen in summen.vorauszahlung")
-  }
   let fehlende_summen = ("summe_betriebskosten", "vorauszahlung", "nachzahlung").filter(k => not zahl(
     summen.at(k, default: none),
   ))
@@ -176,8 +218,11 @@
 #metadata(ergebnis_text) <ergebnis>
 
 // Solange eine Position einen Platzhalter mit `warnung` trägt, ist die Abrechnung nicht versandfertig.
-#let entwurf = daten.positionen.any(p => not leer(p.at("warnung", default: none)))
+#let entwurf = alle_positionen.any(p => not leer(p.at("warnung", default: none)))
 #metadata(entwurf) <entwurf>
+
+// Die geprüften Pfade der Anlagen, relativ zum Projektordner. `scripts/nebenkosten.sh` liest sie mit `typst eval`.
+#metadata(anlagen.map(a => a.datei)) <anlagen>
 
 // Begünstigte Arbeitskosten nach § 35a EStG je Art, mit den Positionen, aus denen sie stammen. Arten ohne
 // Position fallen weg.
@@ -286,7 +331,9 @@ mit diesem Schreiben erhalten Sie die Nebenkostenabrechnung für das Jahr *#jahr
 
 #if leistungen_35a.len() > 0 [
   Steuerermäßigung nach §~35a EStG: Ihr Anteil enthält Arbeitskosten für #{
-    leistungen_35a.map(l => arten_35a.at(l.art) + " von " + eur(l.cent / 100) + " (" + l.positionen.join(", ") + ")").join(" und für ")
+    leistungen_35a
+      .map(l => arten_35a.at(l.art) + " von " + eur(l.cent / 100) + " (" + l.positionen.join(", ") + ")")
+      .join(" und für ")
   }.
 ]
 
@@ -299,7 +346,6 @@ Mit freundlichen Grüßen
 #vermieter.name
 
 // Anlagenvermerk nach DIN 5008, eine Zeile je Anlage.
-#let anlagen = daten.at("anlagen", default: ())
 #if anlagen.len() > 0 {
   v(4mm)
   [*#if anlagen.len() == 1 [Anlage] else [Anlagen]*]
