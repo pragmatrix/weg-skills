@@ -18,6 +18,13 @@ scope, not for the person or project that prompted it.
 - A rule learned in one project is stated in general terms, as a mechanism that applies to the next case. The
   `writing-for-agents` skill describes how (section Pruning, "lesson").
 
+## Keep recipes short
+
+- A recipe in a skill's `.just` file only calls a script. Logic longer than a few lines lives in a script in the
+  skill's `scripts/` folder, a shell script (`.sh`) for shell code, so it can be read, run, and checked on its own.
+- The `.just` file stays where projects import it from, so moving logic into a script does not change their
+  `import` line.
+
 ## Keep personal and project information out
 
 - A skill, its scripts, and its examples contain no personal or project information. That covers names of people and
