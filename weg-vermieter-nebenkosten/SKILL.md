@@ -1,13 +1,13 @@
 ---
 name: weg-vermieter-nebenkosten
-description: Nebenkostenabrechnung (Betriebskostenabrechnung) für den Mieter einer vermieteten Eigentumswohnung aus den WEG-Unterlagen erstellen. Für Umlagefähigkeit nach BetrKV, CO₂-Kostenaufteilung, Vorauszahlungen und die Excel-Abrechnung im Layout des Vorjahres.
+description: Nebenkostenabrechnung (Betriebskostenabrechnung) für den Mieter einer vermieteten Eigentumswohnung aus den WEG-Unterlagen erstellen oder prüfen. Für Umlagefähigkeit nach BetrKV, formelle Mindestangaben und Fristen, CO₂-Kostenaufteilung, Vorauszahlungen und die Abrechnung als PDF-Brief aus einer Typst-Vorlage.
 ---
 
 # Nebenkostenabrechnung für den Mieter
 
 Der Nutzer vermietet eine Einheit in einer WEG. Aus der Einzelabrechnung der WEG und der geprüften Datenbasis
 (Skill `weg-konten-belege`) entsteht die Betriebskostenabrechnung des Mietverhältnisses. Erst entsteht eine
-JSON-Datenbasis mit Begründungen, dann ein Entscheidungsdokument, zuletzt die Excel-Abrechnung im Layout des Vorjahres.
+JSON-Datenbasis mit Begründungen, dann ein Entscheidungsdokument, zuletzt die Abrechnung als PDF-Brief.
 
 Was für das Mietverhältnis gilt (Mieter, Mietvertrag, Vorauszahlung, Verteilungsschlüssel, Heizungsart, Wohnfläche),
 steht in der `AGENTS.md` des Projekts und in `Vermietung/README.md`. Lies beide zuerst.
@@ -21,8 +21,11 @@ steht in der `AGENTS.md` des Projekts und in `Vermietung/README.md`. Lies beide 
 |---|---|
 | `nebenkostenabrechnung_JJJJ_<Mieter>.json` | Datenbasis: Positionen mit Begründung, nicht aufgenommene Positionen, Summen, Entscheidungen, Folgeprüfungen |
 | `Entscheidungen_Nebenkostenabrechnung_JJJJ.md` | Umlage-Tabelle, Entscheidungen, Folgeprüfungen, Unklarheiten |
-| `<Name der Vorlage mit neuem Jahr>.xlsx` | die Abrechnung |
-| `JJJJMMTT Nebenkostenabrechnung JJJJ.pdf` | die versandte Fassung |
+| `JJJJMMTT Nebenkostenabrechnung JJJJ.pdf` | die versandte Fassung, als Scan oder als das verschickte PDF |
+
+Das PDF, das `just nebenkosten` erzeugt, liegt in `tmp/` und gehört nicht in die Ablage. Es entsteht jederzeit neu aus
+Vorlage und Datenbasis. Was der Mieter tatsächlich bekommen hat, belegt die abgelegte versandte Fassung. Eine
+Unterschrift braucht die Abrechnung nicht, die Textform genügt (§ 126b BGB).
 
 ## Grundsätze
 
@@ -30,11 +33,68 @@ steht in der `AGENTS.md` des Projekts und in `Vermietung/README.md`. Lies beide 
    und Erhaltung. Jede Position wird einzeln auf Umlagefähigkeit geprüft (§ 556 BGB mit BetrKV).
 2. **Jede Position hat eine Herkunft.** Das Feld `betrkv` nennt die Nummer der BetrKV. Das Feld `fundstelle` (siehe
    `schema.md` im Skill `weg-konten-belege`) nennt die Stelle im Beleg, oder `berechnung` nennt den Rechenweg.
-   `just nebenkosten-pruefen` meldet jede Position, der eines davon fehlt.
+   `just nebenkosten` bricht bei jeder Position ab, der eines davon fehlt.
 3. **Nicht umlagefähige Positionen werden dokumentiert**, mit Begründung unter `nicht_aufgenommen`.
 4. **Platzhalter tragen eine `warnung`:** ein Wert ohne Beleg im Jahr, etwa Grundsteuer ohne Bescheid oder CO₂ ohne
    Literangabe. Jeder Platzhalter steht auch unter `folgepruefungen`.
 5. **Die Abrechnung ist ein Entwurf.** Der Nutzer versendet sie, nachdem jeder offene Punkt geklärt ist.
+
+## Gesetzliche Anforderungen
+
+Fehlt einer Abrechnung eine **Mindestangabe**, ist sie formell unwirksam. Geht bis zum Ende der Abrechnungsfrist
+keine formell ordnungsgemäße Abrechnung zu, ist die Nachforderung ausgeschlossen. Ein Formfehler kostet also das
+Ergebnis, auch wenn jeder Betrag stimmt. `just nebenkosten` prüft deshalb die Mindestangaben, bevor es das PDF
+erzeugt.
+
+Mindestangaben nach ständiger Rechtsprechung des BGH (Urteil vom 29.01.2020, VIII ZR 244/18):
+
+| Mindestangabe | In der Abrechnung | In der Datenbasis |
+|---|---|---|
+| Gesamtkosten je Kostenart | Spalte „Gesamtkosten“ | `gesamtkosten` je Position |
+| Verteilerschlüssel, erläutert, wo er nicht aus sich heraus verständlich ist | Spalte „Verteilerschlüssel“, Erläuterung vor dem Schlusstext | `schluessel` je Position, `verteilvermerk` |
+| Berechnung des Anteils des Mieters | Spalte „Ihr Anteil“ | `betrag` je Position |
+| Abzug der Vorauszahlungen | Zeile „Ihre Vorauszahlung“ | `summen.vorauszahlung` |
+
+- **Gesamtkosten** sind der Betrag, der je Kostenart auf die Abrechnungseinheit umgelegt wird. Bei einer WEG mit
+  einem Gebäude sind das die Gesamtkosten der Gemeinschaft laut Einzelabrechnung der WEG. Ein vorab um nicht
+  umlagefähige Anteile bereinigter Betrag genügt, die Rechenschritte dahin muss die Abrechnung nicht zeigen (BGH,
+  Urteil vom 20.01.2016, VIII ZR 93/15).
+- **Verteilerschlüssel:** Formell fehlerhaft ist ein fehlender oder unverständlicher Schlüssel (BGH, Urteil vom
+  09.04.2008, VIII ZR 84/07). Eine Erläuterung braucht er nur ausnahmsweise, „Fläche“ und „Miteigentumsanteile“
+  verstehen sich von selbst (VIII ZR 244/18). Ein anderer als der vereinbarte Schlüssel, etwa Anteile statt
+  Wohnfläche, ist nur ein inhaltlicher Fehler und wird korrigiert (BGH, Urteil vom 17.11.2004, VIII ZR 115/04).
+- **Teilbarkeit:** Betrifft ein Formfehler nur einzelne Positionen, die sich unschwer herausrechnen lassen, bleibt
+  die Abrechnung im Übrigen wirksam. Zieht er sich durch die ganze Abrechnung, ist sie insgesamt unwirksam (BGH,
+  Urteil vom 18.05.2011, VIII ZR 240/10).
+- **Messdienst:** Verteilt ein Messdienst Heiz- und Wasserkosten, liegt seine Heizkostenabrechnung der Abrechnung als
+  Anlage bei, und zwar vollständig. Sie trägt Gesamtkosten und Verteilung dieser Positionen, der Schlüssel in der
+  Tabelle verweist auf sie. Sie enthält außerdem die Angaben zur CO₂-Aufteilung nach § 7 Abs. 3 CO2KostAufG und die
+  Abrechnungs- und Verbrauchsinformationen nach § 6a HeizkV mit Anlage 2, die der Mieter bekommen muss. Weitere
+  Pflichtanlagen gibt es nicht. Belege wie Bescheide und Rechnungen sieht der Mieter auf Wunsch ein (Belegeinsicht).
+- **`verteilvermerk`** ist an den Mieter gerichtet. Er sagt, was jeder Schlüssel bedeutet und welcher Anteil auf die
+  Wohnung entfällt, etwa „MEA = Miteigentumsanteile laut Teilungserklärung (Ihre Wohnung 250 von 1000)“.
+
+Fristen und Rechte:
+
+- **Abrechnungsfrist:** Die Abrechnung muss dem Mieter spätestens zwölf Monate nach Ende des Abrechnungszeitraums
+  zugehen (§ 556 Abs. 3 Satz 2 und 3 BGB). Danach ist eine Nachforderung ausgeschlossen, außer der Vermieter hat die
+  Verspätung nicht zu vertreten. Der Abrechnungszeitraum umfasst höchstens ein Jahr. Den Zugang belegen ein Bote oder
+  ein Einwurf-Einschreiben.
+- **Einwendungen des Mieters:** bis zwölf Monate nach Zugang der Abrechnung (§ 556 Abs. 3 Satz 5 und 6 BGB).
+- **Vereinbarung:** Umlegbar sind nur Kosten, die der Mietvertrag dem Mieter auferlegt (§ 556 Abs. 1 BGB). Die
+  Vereinbarung, dass der Mieter „die Betriebskosten“ trägt, erfasst alle Kosten der BetrKV außer den sonstigen
+  Betriebskosten nach § 2 Nr. 17, die einzeln genannt sein müssen (BGH, Urteil vom 10.02.2016, VIII ZR 137/15). Eine
+  nicht vereinbarte Position ist ein inhaltlicher Fehler, kein formeller (VIII ZR 240/10).
+- **Wirtschaftlichkeit:** Umlegbar ist nur, was eine ordentliche Bewirtschaftung erfordert (§ 556 Abs. 3 Satz 1
+  BGB). Eine Doppelversicherung oder doppelt gebuchte Kosten verletzen das.
+- **Belegeinsicht:** Der Mieter darf die Belege einsehen. Bei einer vermieteten Eigentumswohnung beschafft der
+  Vermieter sie bei der Verwaltung.
+- **Kürzungsrechte des Mieters:**
+  - 15 % des Anteils, der entgegen der HeizkV nicht nach Verbrauch abgerechnet ist (§ 12 Abs. 1 HeizkV). Das gilt nur
+    für den betroffenen Teil, etwa nur das Warmwasser. Zwischen Eigentümer und Gemeinschaft gilt es nicht.
+  - 3 % der Heizkosten, wenn die Abrechnung den CO₂-Anteil oder die Angaben nach § 7 Abs. 3 CO2KostAufG nicht
+    ausweist (§ 7 Abs. 4 CO2KostAufG). Für falsch berechnete Angaben ist das umstritten.
+  - Beide Kürzungen macht der Mieter geltend, sie wirken nicht von selbst.
 
 ## Umlagefähigkeit
 
@@ -54,6 +114,23 @@ steht in der `AGENTS.md` des Projekts und in `Vermietung/README.md`. Lies beide 
 | Verwaltervergütung, Bankspesen, Porto | nein | Verwaltungskosten |
 | Zuführung zur Rücklage, Sonderumlage | nein | Aufwand des Eigentümers |
 | Restforderung oder Abschlussausgleich eines Versorgers | nein | schon in der Jahreskostenposition enthalten |
+
+## Steuerermäßigung nach § 35a EStG
+
+Der Mieter kann 20 % der Arbeitskosten für haushaltsnahe Dienstleistungen (§ 35a Abs. 2 EStG) und Handwerkerleistungen
+(§ 35a Abs. 3 EStG) von der Steuer abziehen, die in seinen Betriebskosten stecken. Eine Mindestangabe ist das nicht,
+Mieter fragen aber oft danach. Die Abrechnung nennt die Beträge deshalb, sobald eine Position das Feld `steuer_35a`
+trägt.
+
+- **Begünstigt** sind nur Arbeitskosten mit Fahrtkosten, unbar bezahlt. Haushaltsnahe Dienstleistungen sind etwa
+  Gartenpflege, Hausreinigung, Hausmeister und Winterdienst. Handwerkerleistungen sind etwa Schornsteinfeger mit
+  Kehr- und Messarbeiten und die Wartung von Heizung und Rauchmeldern.
+- **Nicht begünstigt** sind Material, Gebühren, Energie, Wasser, Versicherungen, Grundsteuer und das Ablesen und
+  Abrechnen der Verbrauchszähler.
+- **Quelle** ist die Zusammenstellung nach § 35a EStG in der Einzelabrechnung der WEG. Fehlt sie oder trennt die
+  Rechnung Lohn und Material nicht, ist die Rechnung die Quelle.
+- **Nicht umlagefähige Positionen** wie Instandhaltung stehen oft in derselben Zusammenstellung. Sie gehören nicht
+  in die Abrechnung des Mieters.
 
 ## CO₂-Kosten
 
@@ -86,27 +163,27 @@ Den CO₂-Preis nach BEHG für das Abrechnungsjahr schlägst du nach (2025: 55 �
 die Liter und die Wohnfläche des Gebäudes gibt es keine Berechnung. Bis dahin steht der Vorjahresbetrag als
 Platzhalter mit `warnung`, und die Lieferscheine werden bei der Verwaltung angefordert.
 
-## Template-Verfahren
+## PDF aus der Vorlage
 
-Die Excel-Abrechnung entsteht aus der Abrechnung des Vorjahres als **Vorlage**. Das Skript ersetzt nur Zellinhalte,
-also Positionen, Summen, Titel, Datum und Jahreszahlen. Zeilenhöhen, Formate, verbundene Zellen, Formeln und
-Seitenlayout bleiben so erhalten, wie der Mieter sie kennt. Ein Nachbau des Layouts verliert diese Details, auch wenn
-der Zellvergleich gleich aussieht.
+Die Abrechnung ist ein Brief nach DIN 5008 Form B. Die Typst-Vorlage `nebenkostenabrechnung.typ` neben dieser Datei
+setzt ihn aus der Datenbasis. Sie gilt für jedes Jahr und jedes Mietverhältnis und enthält keine Angaben zu einem
+Objekt. Anschrift und Rücksendeangabe sitzen im Fenster eines DL- oder C5/6-Kuverts, dazu kommen Falz- und Lochmarken.
+Die Positionstabelle trägt die Mindestangaben in den Spalten Kostenart, Verteilerschlüssel, Gesamtkosten und Ihr
+Anteil. Darunter folgen Summe, Vorauszahlung und Ergebnis, dann der `verteilvermerk`, die Angabe nach § 35a EStG und der Gruß. Ist das Ergebnis
+negativ, heißt die Zeile „Ihr Guthaben“ und zeigt den Betrag positiv. Solange eine Position eine `warnung` trägt,
+steht „ENTWURF“ hinter dem Text.
 
-Die Rezepte liegen in `nebenkosten.just` neben dieser Datei. Die `justfile` des Projekts bindet sie ein mit
-`import '.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'`.
+Die Vorlage rechnet nichts neu, sie übernimmt Beträge und Summen aus der Datenbasis. Vorher prüft sie die
+Mindestangaben, die Herkunft jeder Position und `datum_abrechnung` nach dem Abrechnungsjahr. Außerdem prüft sie, dass
+die Positionen die Summe ergeben und Summe minus Vorauszahlung das Ergebnis. Bei einem Befund bricht sie mit der Liste
+aller Befunde ab, und es entsteht kein PDF.
 
-- `just nebenkosten JAHR [VORLAGE]` baut die Abrechnung. Ohne Vorlage nimmt es die `*Nebenkostenabrechnung*.xlsx` in
-  `Vermietung/<JAHR-1>/`. Liegt dort nur eine `.xls`, bricht es ab. Der Nutzer konvertiert sie dann einmal in Excel
-  oder Numbers nach `.xlsx`.
-- `just nebenkosten-pruefen JAHR [VORLAGE]` prüft Positionen, Summe, Vorauszahlung, Nachzahlung oder Guthaben,
-  Datum und Jahreszahlen gegen die Datenbasis und das Format gegen die Vorlage. Ist das Ergebnis negativ, heißt die
-  Zeile „Ihr Guthaben“ und zeigt den Betrag positiv. Exit-Code 0 heißt bestanden.
+Das Rezept liegt in `nebenkosten.just` neben dieser Datei. Die `justfile` des Projekts bindet es ein mit
+`import '.claude/skills/weg-vermieter-nebenkosten/nebenkosten.just'`. Es braucht `typst`, `python3` und `pdfunite` aus Poppler.
 
-Beide brauchen `openpyxl`. Sie laufen mit dem Python eines venv in `$TMPDIR`
-(`python3 -m venv "$TMPDIR/nk-venv" && "$TMPDIR/nk-venv/bin/pip" install openpyxl`). Dann ruft man sie als
-`PYTHON="$TMPDIR/nk-venv/bin/python" just nebenkosten …`. openpyxl schreibt Formeln ohne berechneten Wert. Summe und
-Nachzahlung erscheinen erst beim Öffnen in Excel oder Numbers, deshalb rechnet das Prüfskript sie selbst nach.
+- `just nebenkosten JAHR` liest die eine Datei `nebenkostenabrechnung_JAHR_*.json` in `Vermietung/JAHR/`, prüft sie
+  und schreibt `tmp/Nebenkostenabrechnung JAHR.pdf`. Die Dateien unter `anlagen` hängt es in dieser Reihenfolge an
+  den Brief an. Fehlt eine, bricht es ab. Exit-Code 0 heißt bestanden.
 
 ## Schritte
 
@@ -116,24 +193,45 @@ Nachzahlung erscheinen erst beim Öffnen in Excel oder Numbers, deshalb rechnet 
    Tabelle. Begründe den Verteilungsschlüssel (MEA, Fläche, Einheiten). Gebühren mit eigenem Maßstab gibst du mit
    diesem Maßstab weiter, etwa Niederschlagswasser nach versiegelter Fläche oder Einheiten statt nach Verbrauch.
    Fertig ist der Schritt, wenn jede Kostenposition der Einzelabrechnung entschieden ist, als umlagefähig mit
-   BetrKV-Nummer und Verteilungsschlüssel oder als nicht umlagefähig mit Begründung.
+   BetrKV-Nummer, Gesamtkosten und Verteilungsschlüssel oder als nicht umlagefähig mit Begründung.
 3. **Vorauszahlungen** des Mieters ansetzen, laut Mietvertrag und Zahlungseingang. Das Hausgeld der WEG zählt hier
    nicht. Fertig ist der Schritt, wenn der Betrag den Zahlungseingängen des Jahres entspricht oder die Abweichung
    unter `folgepruefungen` steht.
 4. **JSON schreiben.** Jede Position hat `position`, `betrag`, `betrkv`, `umlagefaehig`, `fundstelle` bzw.
-   `berechnung` und bei Bedarf `warnung`. Dazu kommen `datum_abrechnung` (JJJJ-MM-TT, nach dem Abrechnungsjahr),
-   `nicht_aufgenommen`, `summen` mit `vorauszahlung`, `entscheidungen`, `folgepruefungen` und `verifizierungsfragen`.
+   `berechnung` und bei Bedarf `warnung`. Jede umlagefähige Position hat dazu `gesamtkosten` und `schluessel`, einen
+   kurzen Text für die Spalte, etwa „MEA 250 von 1000“. Dazu kommen `datum_abrechnung` (JJJJ-MM-TT, nach dem
+   Abrechnungsjahr), `verteilvermerk`, `nicht_aufgenommen`, `summen` mit `summe_betriebskosten`, `vorauszahlung` und
+   `nachzahlung` (negativ bei einem Guthaben), `entscheidungen`, `folgepruefungen` und `verifizierungsfragen`.
+   Für den Brief braucht die Vorlage außerdem diese Felder:
+
+   | Feld | Inhalt | Beispiel |
+   |---|---|---|
+   | `jahr` | Abrechnungsjahr als Zahl | `2025` |
+   | `vermieter.name`, `vermieter.adresse` | Absender, Anschrift als „Straße, PLZ Ort“ | „Musterstraße 1, 12345 Musterstadt“ |
+   | `mieterin.name`, `mieterin.adresse` | Empfänger, Anschrift wie beim Vermieter | |
+   | `mieterin.wohnung` | Lage der Wohnung für den Betreff. Ein Zusatz in Klammern erscheint dort nicht. | „EG links (Einheit 3, 250/1000 MEA)“ |
+   | `mieterin.mietvertrag_vom` | optional, Datum des Mietvertrags für den Betreff | `2020-04-01` |
+   | `mieterin.anrede` | optional, die ganze Anrede mit Komma. Ohne das Feld steht „Sehr geehrte Damen und Herren,“. | „Sehr geehrte Frau Beispiel,“ |
+   | `abrechnungszeitraum.von`, `abrechnungszeitraum.bis` | Abrechnungszeitraum | `2025-01-01`, `2025-12-31` |
+   | `anlagen` | optional, Liste der Anlagen mit `bezeichnung` für den Anlagenvermerk und `datei`, dem Pfad einer PDF-Datei relativ zum Projektordner | `[{"bezeichnung": "Heizkostenabrechnung 2025", "datei": "Abrechnungen/2025/Heizkostenabrechnung.pdf"}]` |
+   | `positionen[].steuer_35a` | optional, je Position: `art` („haushaltsnah“ oder „handwerker“), `betrag` (Arbeitskosten im Anteil des Mieters) und `fundstelle` oder `berechnung` | `{"art": "handwerker", "betrag": 12.50, "fundstelle": "Abrechnung.pdf, S. 7"}` |
+
+   Die Anrede schreibst du nur, wenn sie aus dem Mietvertrag oder einer früheren Abrechnung hervorgeht. Aus dem
+   Namen leitest du sie nicht ab.
    Fertig ist der Schritt, wenn `python3 -m json.tool` die Datei ohne Fehler liest und jede Kostenposition aus Schritt 2
    unter `positionen` oder `nicht_aufgenommen` steht.
 5. **Entscheidungsdokument** schreiben, mit Umlage-Tabelle, Entscheidungen, Checkliste der Folgeprüfungen und
    Unklarheiten. Es folgt den Regeln zu Quellenlinks und Gliederung im Skill `weg-eigentuemer-ablage`. Fertig ist es,
    wenn `just qa` nichts mehr meldet.
-6. **Excel bauen**, sobald jeder Platzhalter geklärt oder bewusst als Übergang beibehalten ist. Erst
-   `just nebenkosten JAHR`, dann `just nebenkosten-pruefen JAHR`. Fertig ist der Schritt bei Exit-Code 0.
+6. **PDF bauen** mit `just nebenkosten JAHR`. Fertig ist der Schritt bei Exit-Code 0. Ein PDF mit Platzhaltern trägt
+   den Vermerk ENTWURF und geht so nicht an den Mieter.
 7. **Vor dem Versand** nennst du dem Nutzer, was noch gegen einen Beleg zu prüfen ist: Grundsteuerbescheid,
-   CO₂-Literangabe, Abrechnungsfrist von zwölf Monaten nach Ende des Abrechnungszeitraums (§ 556 Abs. 3 BGB). Dazu
-   kommt eine Anpassung der Vorauszahlung, wenn die Nachzahlung hoch ist (§ 560 Abs. 4 BGB).
-8. **Nachziehen.** Trage die Abrechnung mit einer Zeile in `Vermietung/README.md` ein (Pfad, Ergebnis, Frist).
+   CO₂-Literangabe, Abrechnungsfrist mit Datum und Nachweis des Zugangs (Abschnitt Gesetzliche Anforderungen), die
+   Heizkostenabrechnung des Messdienstes unter `anlagen`. Dazu kommt eine Anpassung der Vorauszahlung, wenn die
+   Nachzahlung hoch ist (§ 560 Abs. 4 BGB).
+8. **Nachziehen.** Trage die Abrechnung mit einer Zeile in `Vermietung/README.md` ein (Pfad, Ergebnis, Frist). Hat
+   der Nutzer sie versandt, legst du die versandte Fassung als `JJJJMMTT Nebenkostenabrechnung JJJJ.pdf` im
+   Jahresordner ab, mit dem Datum des Versands.
 
 ## Fallstricke
 
@@ -141,12 +239,12 @@ Nachzahlung erscheinen erst beim Öffnen in Excel oder Numbers, deshalb rechnet 
   gehören ins Folgejahr. Beide Sichten stehen in der Datenbasis, die Differenz ist eine Frage an die Verwaltung.
 - **Wasser im Messdienst:** Hat die WEG-Abrechnung kein eigenes Wasserkonto, verteilt meist der Messdienst das Wasser
   mit den Heizkosten. Ohne Heizkostenabrechnung des Messdienstes wird Wasser nicht eigens angesetzt. Ihre
-  Kostenaufstellung zeigt, ob Frisch- und Abwasser darin stecken. Eine Wasserzeile aus der Vorlage des Vorjahres
+  Kostenaufstellung zeigt, ob Frisch- und Abwasser darin stecken. Eine Wasserzeile der Abrechnung des Vorjahres
   bleibt nur, wenn die WEG-Abrechnung das Wasser auch in diesem Jahr getrennt führt.
 - **Fälligkeit und Entstehung:** Bescheide für ein Jahr kommen oft erst im Folgejahr. Die Abrechnung weist die Kosten
   im Jahr aus, für das sie entstehen.
-- **Endsummen fett** wie in der Vorlage. Das Template-Verfahren erhält das, das Prüfskript kontrolliert Fonts und
-  Zahlenformate der Ankerzellen.
+- **Platzhalter brauchen eine Herkunft:** Auch eine Position mit `warnung` nennt in `berechnung`, woher der Wert
+  stammt, etwa „Vorjahresbetrag laut Abrechnung JJJJ“. Sonst bricht `just nebenkosten` ab.
 
 ## Abbruch
 

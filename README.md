@@ -13,7 +13,7 @@ Agent skills for owners of a condominium in Germany (a Wohnungseigentümergemein
 | [`pdf-annotate`](./pdf-annotate/) | both | any | Annotate an audit report's items in a copy of the audited PDF, optionally with the changes against an earlier version. |
 | [`etg24-portal`](./etg24-portal/) | both | Claude Code | Browse and download documents from a property manager's ETG24 portal and reconcile them with the filing, via the Claude in Chrome extension. |
 | [`weg-konten-belege`](./weg-konten-belege/) | both | any | Transfer a WEG's account statements and receipts into a checked JSON dataset and reconcile it with the annual statement, including the owner's own Hausgeld payments. |
-| [`weg-vermieter-nebenkosten`](./weg-vermieter-nebenkosten/) | both | any | Operating cost statement for the tenant of a rented unit from the WEG documents: apportionability under the BetrKV, CO₂ cost split, advance payments, Excel statement in the previous year's layout. |
+| [`weg-vermieter-nebenkosten`](./weg-vermieter-nebenkosten/) | both | any | Operating cost statement for the tenant of a rented unit from the WEG documents: apportionability under the BetrKV, CO₂ cost split, advance payments, statement as a PDF letter from a Typst template. |
 
 ### Dependencies
 
@@ -29,7 +29,7 @@ The skills also need command-line tools:
 
 - `just`, `git`, `python3` (3.11 or newer) and Poppler, optionally Tesseract for scans: all skills. The project's `justfile` imports each skill's `.just` file.
 - `uv`, `mutool` and `magick`: `pdf-annotate`
-- the Python package `openpyxl`: `weg-vermieter-nebenkosten` (`PYTHON` can name a venv's Python that has it)
+- `typst`: `weg-vermieter-nebenkosten`
 - the Claude in Chrome extension: `etg24-portal`
 
 ## Installation
@@ -55,8 +55,8 @@ To update, run `git pull` in the clone.
 ## Tests
 
 The tests in `tests/` run from the repository root with `python3 -m unittest discover -s tests`. Tests that need
-`openpyxl` or PyMuPDF are skipped without them, and
-`uv run --with openpyxl --with pymupdf python -m unittest discover -s tests` runs them all.
+`typst` or PyMuPDF are skipped without them, and
+`uv run --with pymupdf python -m unittest discover -s tests` runs them all when `typst` is installed.
 
 ## License
 
